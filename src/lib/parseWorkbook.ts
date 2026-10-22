@@ -1,3 +1,4 @@
+import { chapterFromSheet } from './chapter'
 import { ensureCategory, slug } from './categories'
 import { addMonths, deadlineFromLabel, isoFromUnknown, monthKey } from './dates'
 import { toCents } from './money'
@@ -305,6 +306,7 @@ function parseGrid(
         confidence: 'estimated',
         source: 'workbook',
         sourceSheet: sheet.name,
+        chapter: chapterFromSheet(sheet.name) ?? 'employed',
         note: `Planned amount from ${sheet.name} ${segment.cell}, copied through ${segment.end}. This is not recorded spending.`,
       })
       if (long) {
@@ -427,6 +429,7 @@ function parseSalary(
         endMonth: segment.end,
         grossMonthlyCents: segment.cents,
         source: 'workbook',
+        chapter: 'employed',
         estimated: true,
         notes: 'The gross amount is carried forward in the workbook. It is a plan, not a recorded payslip.',
       })
@@ -511,6 +514,7 @@ function parseSalary(
         confidence: 'estimated',
         source: 'workbook',
         sourceSheet: sheet.name,
+        chapter: 'employed',
         note: 'Planned savings transfer. It is not an expense and the account balance is unknown.',
       })
       if (monthSpan(segment.start, segment.end) > 24) {
@@ -548,6 +552,7 @@ function parseSalary(
             monthlyContributionCents: rule?.amountCents ?? null,
             contributionEstimated: Boolean(rule),
             source: 'workbook',
+            chapter: 'employed',
             notes: `The workbook labels this "${value}". No target amount or account balance was entered, so the balance is unknown.`,
           })
         }
@@ -642,6 +647,7 @@ function parseDebts(sheet: SheetData, issues: ImportIssue[]): Debt[] {
         confirmedBalanceCents: null,
         dueDay: null,
         source: 'workbook',
+        chapter: 'student',
         notes: `Calculated from ${sheet.name}. Original items and listed payments are kept separate from a confirmed balance.`,
       })
     }
@@ -673,6 +679,7 @@ function buildBills(transactions: Transaction[], recurring: RecurringRule[], cat
       interval: 'monthly',
       active: false,
       source: 'detected',
+      chapter: 'student',
       lastSeenMonth: latest[0],
       note: `Detected from recorded months. Last seen ${latest[0]} for ${(latest[1] / 100).toFixed(2)} EUR. It is not scheduled forward, and the due day was not in the workbook.`,
     })
@@ -688,6 +695,7 @@ function buildBills(transactions: Transaction[], recurring: RecurringRule[], cat
       interval: 'monthly',
       active: true,
       source: 'workbook',
+      chapter: 'employed',
       lastSeenMonth: null,
       note: rule.note,
     })
@@ -742,6 +750,7 @@ function makeTransaction(input: {
     source: 'workbook',
     sourceSheet: input.sheet,
     sourceCell: input.cell,
+    chapter: chapterFromSheet(input.sheet) ?? 'student',
     recurring: false,
   }
 }

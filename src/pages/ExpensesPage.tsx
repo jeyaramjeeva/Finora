@@ -1,3 +1,4 @@
+import { activeChapter, chapterOf, scopeState } from '../lib/chapter'
 import { useMemo, useState } from 'react'
 import { Badge, Empty, Field, Modal, Notice, Panel } from '../components/ui'
 import { categoryFromName } from '../lib/categories'
@@ -10,7 +11,8 @@ import { newTransaction, useStore } from '../state/store'
 const KINDS: TxKind[] = ['expense', 'income', 'transfer', 'debt_payment', 'savings_contribution']
 
 export function ExpensesPage() {
-  const { state, saveTransaction, deleteTransaction, saveCategory, mergeCategory } = useStore()
+  const { state: full, saveTransaction, deleteTransaction, saveCategory, mergeCategory } = useStore()
+  const state = scopeState(full)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'date' | 'amount' | 'category'>('date')
   const [editing, setEditing] = useState<Transaction | null>(null)
@@ -48,7 +50,8 @@ export function ExpensesPage() {
       account: String(form.get('account') ?? ''),
       notes: String(form.get('notes') ?? ''),
       recurring: form.get('recurring') === 'on',
-      origin: existing?.origin ?? 'actual',
+      origin: existing?.origin ?? (activeChapter(full) === 'employed' ? 'forecast' : 'actual'),
+      chapter: existing ? chapterOf(existing) : activeChapter(full),
       source: existing?.source ?? 'manual',
     }, !existing)
     setEditing(null)
@@ -60,7 +63,7 @@ export function ExpensesPage() {
       <header className="page-head">
         <div>
           <h1>Expenses</h1>
-          <p>{rows.length} records in the current filters. Workbook lines keep their source cell.</p>
+          <p>{activeChapter(full) === 'employed' ? 'Full-time rent, ticket, and savings amounts are a plan. They are not mixed into student transactions.' : `${rows.length} records in the current filters. Workbook lines keep their source cell.`}</p>
         </div>
         <button type="button" className="btn primary" onClick={() => { setError(''); setEditing(newTransaction({ date: state.filters.month === 'all' ? new Date().toISOString().slice(0, 10) : `${state.filters.month}-01`, amountCents: 0, categoryId: state.categories[0]?.id ?? '', kind: 'expense' })) }}>Add record</button>
       </header>

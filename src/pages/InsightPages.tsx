@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
+import { scopeState } from '../lib/chapter'
 import { findDuplicateGroups } from '../lib/duplicates'
 import { isValidIsoDate, monthLabel } from '../lib/dates'
 import { stableCharges, unusualIncreases } from '../lib/insights'
@@ -14,7 +15,8 @@ import { eligibleSpend } from '../lib/calc'
 import { categoryFromName } from '../lib/categories'
 
 export function ReportsPage() {
-  const { state, setFilters } = useStore()
+  const { state: full, setFilters } = useStore()
+  const state = scopeState(full)
   const rows = visibleTransactions(state).filter((transaction) => transaction.origin === 'actual')
   const history = trend(state, state.filters.month, state.filters.month === 'all' ? 24 : 12)
   const totals = categoryTotals(rows)

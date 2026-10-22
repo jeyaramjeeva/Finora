@@ -2,6 +2,8 @@ export type TxKind = 'income' | 'expense' | 'transfer' | 'debt_payment' | 'savin
 
 export type Origin = 'actual' | 'forecast'
 
+export type Chapter = 'student' | 'employed'
+
 export type Confidence = 'confirmed' | 'estimated' | 'needs_review'
 
 export type TxSource = 'workbook' | 'manual' | 'csv'
@@ -21,6 +23,7 @@ export interface Transaction {
   source: TxSource
   sourceSheet?: string
   sourceCell?: string
+  chapter?: Chapter
   recurring: boolean
   edited?: boolean
 }
@@ -52,6 +55,7 @@ export interface Goal {
   monthlyContributionCents: number | null
   contributionEstimated: boolean
   source: TxSource | 'workbook'
+  chapter?: Chapter
   notes: string
 }
 
@@ -82,6 +86,7 @@ export interface Debt {
   confirmedBalanceCents: number | null
   dueDay: number | null
   source: 'workbook' | 'manual'
+  chapter?: Chapter
   notes: string
 }
 
@@ -93,6 +98,7 @@ export interface IncomePlan {
   endMonth: string
   grossMonthlyCents: number
   source: 'workbook' | 'manual'
+  chapter?: Chapter
   estimated: boolean
   notes: string
 }
@@ -109,6 +115,7 @@ export interface RecurringRule {
   confidence: Confidence
   source: 'workbook' | 'manual'
   sourceSheet?: string
+  chapter?: Chapter
   note: string
 }
 
@@ -121,6 +128,7 @@ export interface Bill {
   interval: 'monthly' | 'quarterly' | 'yearly'
   active: boolean
   source: 'detected' | 'user' | 'workbook'
+  chapter?: Chapter
   lastSeenMonth: string | null
   note: string
 }
@@ -201,6 +209,7 @@ export interface Filters {
   categoryId: string
   kind: 'all' | TxKind
   origin: 'all' | Origin
+  chapter?: Chapter
 }
 
 export interface Settings {

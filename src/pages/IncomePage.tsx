@@ -1,5 +1,6 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Badge, Field, Notice, Panel, Stat } from '../components/ui'
+import { activeChapter, scopeState } from '../lib/chapter'
 import { monthLabel } from '../lib/dates'
 import { estimatePayslip } from '../lib/forecast'
 import { formatMoney, formatPercent } from '../lib/money'
@@ -9,7 +10,9 @@ import type { DeductionRates } from '../lib/types'
 import { useStore } from '../state/store'
 
 export function IncomePage() {
-  const { state, update } = useStore()
+  const { state: full, update } = useStore()
+  const state = scopeState(full)
+  const employed = activeChapter(state) === 'employed'
   const months = [...new Set(state.transactions.filter((transaction) => transaction.kind === 'income' && transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort()
   const history = trend(state, state.filters.month)
   const plan = state.incomePlans[0]
@@ -26,15 +29,15 @@ export function IncomePage() {
     <div className="stack">
       <header className="page-head">
         <div>
-          <h1>Income</h1>
-          <p>Recorded income is separate from the full-time salary plan. Deduction rates are estimates.</p>
+          <h1>{employed ? 'Full-time income' : 'Student income'}</h1>
+          <p>{employed ? 'Estimated salary from the full-time plan. Student earnings are not included, and these percentages are not a payslip.' : 'Recorded student earnings and money received. The full-time salary plan is not included.'}</p>
         </div>
       </header>
       <section className="stat-grid">
         <Stat label="Actual income in view" value={formatMoney(selected?.incomeCents ?? null)} detail={selected ? monthLabel(state.filters.month) : 'Choose one month to see that period'} />
-        <Stat label="Plan gross" value={plan ? formatMoney(plan.grossMonthlyCents) : '—'} detail={plan ? `${plan.employer}, ${plan.startMonth} to ${plan.endMonth}` : 'No salary plan imported'} />
-        <Stat label="Estimated net" value={payslip ? formatMoney(payslip.netCents) : '—'} detail={payslip?.deductionPercent !== null && payslip ? `${formatPercent(payslip.deductionPercent)} estimated deductions` : 'Not a payslip'} />
-        <Stat label="Estimated deductions" value={payslip ? formatMoney(payslip.deductionCents) : '—'} detail="Each line is rounded to the cent" />
+        <Stat label={employed ? 'Plan gross' : 'Student gross'} value={employed && plan ? formatMoney(plan.grossMonthlyCents) : '—'} detail={employed && plan ? `${plan.employer}, ${plan.startMonth} to ${plan.endMonth}` : 'Salary formulas stay in Full-time'} />
+        <Stat label="Estimated net" value={employed && payslip ? formatMoney(payslip.netCents) : '—'} detail={employed && payslip?.deductionPercent !== null && payslip ? `${formatPercent(payslip.deductionPercent)} estimated deductions` : 'Not a payslip'} />
+        <Stat label="Estimated deductions" value={employed && payslip ? formatMoney(payslip.deductionCents) : '—'} detail={employed ? 'Each line is rounded to the cent' : 'Not part of student life'} />
       </section>
       <div className="grid-2">
         <Panel title="Actual monthly income" extra={<Badge>History</Badge>}>
@@ -50,7 +53,7 @@ export function IncomePage() {
             </ResponsiveContainer>
           </div>
         </Panel>
-        <Panel title="Estimated payslip" extra={<Badge tone="warn">Estimate</Badge>}>
+        {employed ? <Panel title="Estimated payslip" extra={<Badge tone="warn">Estimate</Badge>}>
           {!payslip || !plan ? <p>No salary plan was imported.</p> : (
             <div className="stack">
               <Notice>These percentages come from formulas in the workbook. They are not verified payroll calculations. Editing them changes the forecast, not the historical income.</Notice>
@@ -73,9 +76,9 @@ export function IncomePage() {
               </label>
             </div>
           )}
-        </Panel>
+        </Panel> : <Panel title="Student income only"><p>The gross salary, tax, pension, and insurance formulas belong to the full-time plan. Switch to Full-time to see them.</p></Panel>}
       </div>
-      <Panel title="Recorded sources">
+      {employed ? null : <Panel title="Recorded sources">
         <div className="table-wrap">
           <table>
             <thead><tr><th>Month</th><th>Source</th><th className="num">Amount</th><th>Workplace note</th></tr></thead>
@@ -91,7 +94,7 @@ export function IncomePage() {
             </tbody>
           </table>
         </div>
-      </Panel>
+      </Panel>}
       {state.assumptions.accounts.length ? (
         <Panel title="Account labels from the workbook">
           {state.assumptions.accounts.map((account) => <div className="row-card" key={`${account.role}-${account.name}`}><span>{account.role}</span><strong>{account.name}</strong></div>)}

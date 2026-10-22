@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Chip, KpiButton, PillTabs, SpendStack } from '../components/interactive'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
-import { monthFigures } from '../lib/calc'
+import { activeChapter, employedMonths, planCategoryTotals, scopeState } from '../lib/chapter'
 import { shortMonth } from '../lib/dates'
 import { unusualIncreases } from '../lib/insights'
 import { formatMoney, formatPercent } from '../lib/money'
-import { budgetSummary, categoryName, categoryTotals, colorFor, compare, coverageFor, debtSummary, knownSavingsBalance, periodLabel, previousFigures, selectedFigures, trend } from '../lib/selectors'
+import { budgetSummary, categoryName, categoryTotals, colorFor, compare, debtSummary, figuresForMonths, knownSavingsBalance, periodLabel, previousFigures, trend } from '../lib/selectors'
 import { useStore } from '../state/store'
 
 type Focus = 'all' | 'income' | 'expense'
@@ -24,8 +24,10 @@ function loadViews(): SavedView[] {
 }
 
 export function Dashboard() {
-  const { state, setFilters } = useStore()
-  const actualMonths = useMemo(() => [...new Set(state.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort(), [state.transactions])
+  const { state: full, setFilters } = useStore()
+  const state = scopeState(full)
+  const employed = activeChapter(state) === 'employed'
+  const actualMonths = useMemo(() => employed ? employedMonths(state) : [...new Set(state.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort(), [employed, state])
   const [months, setMonths] = useState<string[]>(() => (state.filters.month === 'all' ? [] : [state.filters.month]))
   const [focus, setFocus] = useState<Focus>('all')
   const [categoryId, setCategoryId] = useState<string | null>(state.filters.categoryId === 'all' ? null : state.filters.categoryId)
@@ -39,8 +41,8 @@ export function Dashboard() {
     setMonths(state.filters.month === 'all' ? [] : [state.filters.month])
   }, [state.filters.month])
 
-  const activeMonths = months.length ? months : actualMonths
-  const figures = useMemo(() => sumMonths(state.transactions, activeMonths, state), [state, activeMonths])
+  const activeMonths = months.length ? months : employed ? actualMonths.slice(0, 12) : actualMonths
+  const figures = useMemo(() => figuresForMonths(state, months), [state, months])
   const previous = months.length === 1 ? previousFigures({ ...state, filters: { ...state.filters, month: months[0] } }) : null
   const incomeDelta = compare(figures.incomeCents, previous?.incomeCents ?? null)
   const expenseDelta = compare(figures.expenseCents, previous?.expenseCents ?? null)
@@ -49,7 +51,7 @@ export function Dashboard() {
     const end = months.length ? [...months].sort().at(-1) ?? state.filters.month : state.filters.month
     return trend(state, end)
   }, [months, state])
-  const totals = categoryTotals(state.transactions.filter((transaction) => activeMonths.includes(transaction.date.slice(0, 7))))
+  const totals = employed ? planCategoryTotals(state, activeMonths) : categoryTotals(state.transactions.filter((transaction) => activeMonths.includes(transaction.date.slice(0, 7))))
   const slices = totals.slice(0, 8).map((item) => ({ id: item.id, name: categoryName(state, item.id), value: item.cents / 100, cents: item.cents }))
   const debt = debtSummary(state)
   const savingsBalance = knownSavingsBalance(state)
@@ -108,7 +110,7 @@ export function Dashboard() {
       <header className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>{months.length === 0 ? periodLabel(state) : months.length === 1 ? months[0] : `${months.length} months selected`}. Click a card or a bar to focus. A quiet month is not treated as a successful one.</p>
+          <p>{months.length === 0 ? periodLabel(state) : months.length === 1 ? `${employed ? 'Full-time plan' : 'Student life'} · ${months[0]}` : `${months.length} months selected`}. {employed ? 'These figures are the employment plan. Student spending is not included.' : 'These figures are student life only. The full-time salary plan is not included.'}</p>
         </div>
         {filtersActive ? <button type="button" className="btn" onClick={() => { writtenMonth.current = 'all'; setMonths([]); setFocus('all'); setCategoryId(null); setFilters({ month: 'all', categoryId: 'all', kind: 'all' }) }}>Clear</button> : null}
       </header>
@@ -118,7 +120,7 @@ export function Dashboard() {
           <span>Month</span>
           <div className="chips">
             <Chip active={months.length === 0} onClick={() => applyMonths([])}>All</Chip>
-            {actualMonths.slice(-18).map((month) => (
+            {(employed ? actualMonths.slice(0, 18) : actualMonths.slice(-18)).map((month) => (
               <Chip key={month} active={months.includes(month)} onClick={() => toggleMonth(month)}>
                 {shortMonth(month)} <em>{month.slice(2, 4)}</em>
               </Chip>
@@ -154,10 +156,10 @@ export function Dashboard() {
       <section className="stat-grid">
         <KpiButton label="Net income" value={formatMoney(figures.incomeCents)} tone={incomeDelta !== null && incomeDelta < 0 ? 'bad' : incomeDelta !== null && incomeDelta > 0 ? 'good' : 'neutral'} selected={focus === 'income'} spark={sparks.income} detail={deltaText(incomeDelta, previous?.month, 'No prior month in this selection')} onClick={() => setFocus((current) => current === 'income' ? 'all' : 'income')} />
         <KpiButton label="Expenses" value={formatMoney(figures.expenseCents)} selected={focus === 'expense'} spark={sparks.expense} detail={expenseDelta === null ? 'Transfers are excluded' : `${formatMoney(Math.abs(expenseDelta))} ${expenseDelta > 0 ? 'higher' : 'lower'} than ${previous?.month}`} onClick={() => setFocus((current) => current === 'expense' ? 'all' : 'expense')} />
-        <KpiButton label="Savings" value={formatMoney(figures.savingsCents)} tone={savingsDelta !== null && savingsDelta < 0 ? 'bad' : 'neutral'} spark={sparks.savings} detail={savingsDelta === null ? 'Income minus expenses and debt payments' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`} onClick={() => setFocus('all')} />
+        <KpiButton label="Savings" value={formatMoney(figures.savingsCents)} tone={savingsDelta !== null && savingsDelta < 0 ? 'bad' : 'neutral'} spark={sparks.savings} detail={employed ? 'Estimated net minus planned living costs. Student spending is excluded.' : savingsDelta === null ? 'Income minus expenses and debt payments' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`} onClick={() => setFocus('all')} />
         <KpiButton label="Savings rate" value={formatPercent(figures.savingsRate)} detail={figures.incomeCents === 0 ? 'Income is zero, so the rate is undefined' : 'Savings divided by income'} onClick={() => setFocus('all')} />
         <KpiButton label="Remaining budget" value={budgets.remaining === null ? 'No budget set' : formatMoney(budgets.remaining)} tone={budgets.over ? 'bad' : 'neutral'} detail={budgets.count ? `${budgets.count} monthly budgets` : 'Set a budget to track this'} href="#budgets" />
-        <KpiButton label="Outstanding debt" value={formatMoney(debt.cents)} tone={debt.cents > 0 ? 'bad' : 'neutral'} detail={debt.unconfirmed ? 'Workbook balance, not a confirmed statement' : 'Confirmed balances'} href="#debts" />
+        <KpiButton label="Outstanding debt" value={employed ? 'In student life' : formatMoney(debt.cents)} tone={!employed && debt.cents > 0 ? 'bad' : 'neutral'} detail={employed ? 'Repayments from the student workbook stay on their own' : debt.unconfirmed ? 'Workbook balance, not a confirmed statement' : 'Confirmed balances'} href="#debts" />
         <KpiButton label="Savings balances" value={savingsBalance === null ? 'Unknown' : formatMoney(savingsBalance)} detail={savingsBalance === null ? 'No confirmed account balances' : 'Sum of balances you entered'} href="#savings" />
         <KpiButton label="Planned bills" value={String(planBills.length)} detail={planBills.length ? planBills.slice(0, 2).map((rule) => rule.name).join(' · ') : 'No planned bill in this selection'} href="#calendar" />
       </section>
@@ -247,7 +249,7 @@ export function Dashboard() {
           )}
         </Panel>
         <Panel title="Planned, not yet spent">
-          {planBills.length === 0 ? <Empty title="No planned bill in this selection" body="Full-time plan amounts start in January 2027. They stay separate from actual spending." /> : (
+          {planBills.length === 0 ? <Empty title="No planned bill in this selection" body={employed ? 'The full-time sheet has no non-zero bill in these months.' : 'Student life has no scheduled bill in these months. The employment plan is separate.'} /> : (
             <div className="list">
               {planBills.slice(0, 8).map((rule) => (
                 <div className="row-card" key={rule.id}>
@@ -261,38 +263,6 @@ export function Dashboard() {
       </div>
     </div>
   )
-}
-
-function sumMonths(transactions: Parameters<typeof monthFigures>[0], months: string[], state: Parameters<typeof coverageFor>[0]) {
-  if (months.length === 0) return selectedFigures(state)
-  let income = 0
-  let expense = 0
-  let debt = 0
-  let incomeKnown = false
-  let expenseKnown = false
-  let hasRecords = false
-  for (const month of months) {
-    const figures = monthFigures(transactions, month, coverageFor(state, month))
-    if (figures.hasRecords) hasRecords = true
-    if (figures.incomeCents !== null) { income += figures.incomeCents; incomeKnown = true }
-    if (figures.expenseCents !== null) { expense += figures.expenseCents; expenseKnown = true }
-    if (figures.debtPaymentCents !== null) debt += figures.debtPaymentCents
-  }
-  const savings = incomeKnown && expenseKnown ? income - expense - debt : null
-  return {
-    month: months.join(','),
-    hasRecords,
-    incomeKnown,
-    expenseKnown,
-    incomeCents: incomeKnown ? income : null,
-    expenseCents: expenseKnown ? expense : null,
-    debtPaymentCents: expenseKnown ? debt : null,
-    transferCents: null,
-    savingsContributionCents: null,
-    savingsCents: savings,
-    savingsRate: savings !== null && income > 0 ? (savings / income) * 100 : null,
-    availableCents: savings,
-  }
 }
 
 function deltaText(delta: number | null, month: string | undefined, empty: string): string {

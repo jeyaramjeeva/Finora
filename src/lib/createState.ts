@@ -30,7 +30,7 @@ export function createState(result: ImportResult, previous?: AppState): AppState
       suppressedIds: [],
       settings: { theme: 'light', sidebarCollapsed: false, assumptionsLocked: false },
       lastImportAt: new Date().toISOString(),
-      filters: { month: latestActualMonth(result.transactions), categoryId: 'all', kind: 'all', origin: 'actual' },
+      filters: { month: latestActualMonth(result.transactions), categoryId: 'all', kind: 'all', origin: 'actual', chapter: 'student' },
     }
   }
 

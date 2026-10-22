@@ -5,10 +5,12 @@ import { addMonths } from '../lib/dates'
 import { formatMoney, formatPercent, parseAmount } from '../lib/money'
 import { categoryName } from '../lib/selectors'
 import { uid } from '../lib/createState'
+import { scopeState } from '../lib/chapter'
 import { useStore } from '../state/store'
 
 export function BudgetsPage() {
-  const { state, saveBudget, deleteBudget } = useStore()
+  const { state: full, saveBudget, deleteBudget } = useStore()
+  const state = scopeState(full)
   const month = state.filters.month === 'all' ? (state.stats?.actualEnd?.slice(0, 7) ?? '') : state.filters.month
   const previous = month ? addMonths(month, -1) : ''
   const rows = state.categories.filter((category) => category.active && category.kind === 'expense').map((category) => {

@@ -59,7 +59,7 @@ function blank(): AppState {
     suppressedIds: [],
     settings: { theme: 'light', sidebarCollapsed: false, assumptionsLocked: false },
     lastImportAt: null,
-    filters: { month: 'all', categoryId: 'all', kind: 'all', origin: 'actual' },
+    filters: { month: 'all', categoryId: 'all', kind: 'all', origin: 'actual', chapter: 'student' },
   }
 }
 

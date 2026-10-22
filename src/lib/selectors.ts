@@ -1,3 +1,4 @@
+import { activeChapter, employedMonths, planSnapshot, scopeState } from './chapter'
 import { eligibleSpend, monthFigures, outstandingDebt, previousMonthDelta } from './calc'
 import { addMonths, monthLabel, shortMonth } from './dates'
 import { buildForecast, type ForecastModel, type ScenarioCopy } from './forecast'
@@ -12,9 +13,11 @@ export function categoryName(state: AppState, id: string): string {
 }
 
 export function monthChoices(state: AppState, asOf = new Date()): string[] {
+  if (activeChapter(state) === 'employed') return employedMonths(state).slice().reverse()
+  const view = scopeState(state)
   const months = new Set<string>()
-  for (const transaction of state.transactions) months.add(transaction.date.slice(0, 7))
-  for (const row of state.coverage) months.add(row.month)
+  for (const transaction of view.transactions) months.add(transaction.date.slice(0, 7))
+  for (const row of view.coverage) months.add(row.month)
   const now = `${asOf.getFullYear()}-${String(asOf.getMonth() + 1).padStart(2, '0')}`
   months.add(now)
   return [...months].sort().reverse()
@@ -25,8 +28,13 @@ export function coverageFor(state: AppState, month: string) {
 }
 
 export function selectedFigures(state: AppState) {
-  if (state.filters.month === 'all') {
-    const months = [...new Set(state.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort()
+  const view = scopeState(state)
+  if (activeChapter(view) === 'employed') {
+    const months = view.filters.month === 'all' ? employedMonths(view).slice(0, 12) : [view.filters.month]
+    return foldPlans(view, months)
+  }
+  if (view.filters.month === 'all') {
+    const months = [...new Set(view.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort()
     if (months.length === 0) return monthFigures([], 'all')
     let income = 0
     let expense = 0
@@ -34,7 +42,7 @@ export function selectedFigures(state: AppState) {
     let incomeKnown = false
     let expenseKnown = false
     for (const month of months) {
-      const figures = monthFigures(state.transactions, month, coverageFor(state, month))
+      const figures = monthFigures(view.transactions, month, coverageFor(view, month))
       if (figures.incomeCents !== null) {
         income += figures.incomeCents
         incomeKnown = true
@@ -61,13 +69,15 @@ export function selectedFigures(state: AppState) {
       availableCents: savings,
     }
   }
-  return monthFigures(state.transactions, state.filters.month, coverageFor(state, state.filters.month))
+  return monthFigures(view.transactions, view.filters.month, coverageFor(view, view.filters.month))
 }
 
 export function previousFigures(state: AppState) {
-  if (state.filters.month === 'all') return null
-  const month = addMonths(state.filters.month, -1)
-  return monthFigures(state.transactions, month, coverageFor(state, month))
+  const view = scopeState(state)
+  if (view.filters.month === 'all') return null
+  const month = addMonths(view.filters.month, -1)
+  if (activeChapter(view) === 'employed') return planSnapshot(view, month)
+  return monthFigures(view.transactions, month, coverageFor(view, month))
 }
 
 export function compare(current: number | null, previous: number | null): number | null {
@@ -75,8 +85,9 @@ export function compare(current: number | null, previous: number | null): number
 }
 
 export function visibleTransactions(state: AppState, extra?: { search?: string; from?: string; to?: string }): Transaction[] {
+  const view = scopeState(state)
   const search = extra?.search?.trim().toLowerCase()
-  return state.transactions.filter((transaction) => {
+  return view.transactions.filter((transaction) => {
     if (state.filters.month !== 'all' && transaction.date.slice(0, 7) !== state.filters.month) return false
     if (state.filters.categoryId !== 'all' && transaction.categoryId !== state.filters.categoryId) return false
     if (state.filters.kind !== 'all' && transaction.kind !== state.filters.kind) return false
@@ -90,13 +101,16 @@ export function visibleTransactions(state: AppState, extra?: { search?: string; 
 }
 
 export function trend(state: AppState, endMonth: string, count = 12): Array<{ month: string; label: string; income: number | null; expense: number | null; savings: number | null; rate: number | null }> {
-  const end = endMonth === 'all' ? latest(state) : endMonth
+  const view = scopeState(state)
+  const end = endMonth === 'all'
+    ? (activeChapter(view) === 'employed' ? employedMonths(view)[Math.min(11, employedMonths(view).length - 1)] : latest(view))
+    : endMonth
   if (!end) return []
   const start = addMonths(end, -(count - 1))
   const rows = []
   let cursor = start
   while (cursor <= end) {
-    const figures = monthFigures(state.transactions, cursor, coverageFor(state, cursor))
+    const figures = activeChapter(view) === 'employed' ? planSnapshot(view, cursor) : monthFigures(view.transactions, cursor, coverageFor(view, cursor))
     rows.push({
       month: cursor,
       label: shortMonth(cursor),
@@ -124,33 +138,39 @@ export function categoryTotals(transactions: Transaction[], kind: TxKind = 'expe
 }
 
 export function budgetSummary(state: AppState, month: string): { remaining: number | null; over: boolean; count: number } {
-  const monthly = state.budgets.filter((budget) => budget.period === 'month')
+  const view = scopeState(state)
+  const monthly = view.budgets.filter((budget) => budget.period === 'month')
   if (month === 'all' || monthly.length === 0) return { remaining: null, over: false, count: monthly.length }
   let remaining = 0
   for (const budget of monthly) {
-    remaining += budget.amountCents - eligibleSpend(state.transactions, budget.categoryId, { month })
+    remaining += budget.amountCents - eligibleSpend(view.transactions, budget.categoryId, { month })
   }
   return { remaining, over: remaining < 0, count: monthly.length }
 }
 
 export function knownSavingsBalance(state: AppState): number | null {
-  if (state.goals.length === 0) return null
-  if (state.goals.some((goal) => goal.currentBalanceCents === null)) return null
-  return state.goals.reduce((sum, goal) => sum + (goal.currentBalanceCents ?? 0), 0)
+  const goals = scopeState(state).goals
+  if (goals.length === 0) return null
+  if (goals.some((goal) => goal.currentBalanceCents === null)) return null
+  return goals.reduce((sum, goal) => sum + (goal.currentBalanceCents ?? 0), 0)
 }
 
 export function debtSummary(state: AppState) {
-  return outstandingDebt(state.debts)
+  return outstandingDebt(scopeState(state).debts)
 }
 
 export function forecastFor(state: AppState, count: number, scenarioId: ScenarioCopy['id']): ForecastModel {
-  const start = state.filters.month === 'all' ? addMonths(latest(state) ?? monthChoices(state)[0], 1) : addMonths(state.filters.month, 1)
+  const view = scopeState(state)
+  const employed = activeChapter(view) === 'employed'
+  const start = view.filters.month === 'all'
+    ? (employed ? (view.assumptions.planStart ?? '2027-01') : addMonths(latest(view) ?? monthChoices(view)[0], 1))
+    : addMonths(view.filters.month, 1)
   return buildForecast({
-    transactions: state.transactions,
-    incomePlans: state.incomePlans,
-    recurring: state.recurring,
-    assumptions: state.assumptions,
-    debts: state.debts,
+    transactions: view.transactions,
+    incomePlans: view.incomePlans,
+    recurring: view.recurring,
+    assumptions: employed ? state.assumptions : view.assumptions,
+    debts: view.debts,
     startMonth: start,
     count,
     scenarioId,
@@ -158,7 +178,71 @@ export function forecastFor(state: AppState, count: number, scenarioId: Scenario
 }
 
 export function periodLabel(state: AppState): string {
-  return state.filters.month === 'all' ? 'All actual months' : monthLabel(state.filters.month)
+  const name = activeChapter(state) === 'employed' ? 'Full-time' : 'Student life'
+  return state.filters.month === 'all' ? name : `${name} · ${monthLabel(state.filters.month)}`
+}
+
+export function figuresForMonths(state: AppState, months: string[]) {
+  const view = scopeState(state)
+  if (activeChapter(view) === 'employed') return foldPlans(view, months.length ? months : employedMonths(view).slice(0, 12))
+  if (months.length === 0) return selectedFigures(view)
+  let income = 0
+  let expense = 0
+  let debt = 0
+  let incomeKnown = false
+  let expenseKnown = false
+  let hasRecords = false
+  for (const month of months) {
+    const figures = monthFigures(view.transactions, month, coverageFor(view, month))
+    if (figures.hasRecords) hasRecords = true
+    if (figures.incomeCents !== null) { income += figures.incomeCents; incomeKnown = true }
+    if (figures.expenseCents !== null) { expense += figures.expenseCents; expenseKnown = true }
+    if (figures.debtPaymentCents !== null) debt += figures.debtPaymentCents
+  }
+  const savings = incomeKnown && expenseKnown ? income - expense - debt : null
+  return {
+    month: months.join(','),
+    hasRecords,
+    incomeKnown,
+    expenseKnown,
+    incomeCents: incomeKnown ? income : null,
+    expenseCents: expenseKnown ? expense : null,
+    debtPaymentCents: expenseKnown ? debt : null,
+    transferCents: null,
+    savingsContributionCents: null,
+    savingsCents: savings,
+    savingsRate: savings !== null && income > 0 ? (savings / income) * 100 : null,
+    availableCents: savings,
+  }
+}
+
+function foldPlans(state: AppState, months: string[]) {
+  let income = 0
+  let expense = 0
+  let incomeKnown = false
+  let expenseKnown = false
+  let hasRecords = false
+  for (const month of months) {
+    const figures = planSnapshot(state, month)
+    if (figures.hasRecords) hasRecords = true
+    if (figures.incomeCents !== null) { income += figures.incomeCents; incomeKnown = true }
+    if (figures.expenseCents !== null) { expense += figures.expenseCents; expenseKnown = true }
+  }
+  const savings = incomeKnown && expenseKnown ? income - expense : null
+  return {
+    month: months.join(','),
+    hasRecords,
+    incomeKnown,
+    expenseKnown,
+    incomeCents: incomeKnown ? income : null,
+    expenseCents: expenseKnown ? expense : null,
+    debtPaymentCents: 0,
+    transferCents: null,
+    savingsContributionCents: null,
+    savingsCents: savings,
+    savingsRate: savings !== null && income > 0 ? (savings / income) * 100 : null,
+    availableCents: savings,
+  }
 }
 
 export const PALETTE = ['#0f7b4c', '#1d4e89', '#9a6700', '#5b4b8a', '#0e7490', '#b45309', '#3f6212', '#64748b', '#9f1239', '#155e75']

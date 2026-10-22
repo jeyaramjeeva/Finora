@@ -156,16 +156,23 @@ export function buildForecast(input: {
   const sampleFigures = sampleMonths.map((month) => monthFigures(input.transactions, month, { incomeKnown: true, expenseKnown: true }))
   const runIncome = input.assumptions.manualRunRateIncomeCents ?? average(sampleFigures.map((figure) => figure.incomeCents ?? 0).filter((_, index) => sampleFigures[index].incomeCents !== null))
   const runExpense = input.assumptions.manualRunRateExpenseCents ?? average(sampleFigures.map((figure) => figure.expenseCents ?? 0).filter((_, index) => sampleFigures[index].expenseCents !== null))
-  const notes = [
-    'Projections are scenarios, not guaranteed results.',
-    'Salary deductions in the full-time plan are percentage formulas. They are estimates, not payslip calculations.',
-    sampleMonths.length
-      ? `The recent run-rate uses ${sampleMonths.join(', ')}.`
-      : 'There is not enough actual history to build a run-rate.',
-    'Transfers into savings are not counted as living expenses.',
-    'Student-era insurance is not added on top of the employed net salary, because that plan already deducts health and long-term care insurance.',
-    'The full-time sheet leaves many categories at zero. Those zeros are omitted. Variable costs fall back to the recent average when a category is absent from the plan.',
-  ]
+  const employedPlan = input.incomePlans.length > 0
+  const notes = employedPlan
+    ? [
+        'Projections are scenarios, not guaranteed results.',
+        'This forecast uses the full-time plan only. Student-life income and spending are not included.',
+        'Salary deductions are percentage formulas. They are estimates, not payslip calculations.',
+        'Categories left at zero in the full-time sheet are omitted. They are not filled from student spending.',
+        'Savings balances are unknown. Planned contributions are not money already saved.',
+      ]
+    : [
+        'Projections are scenarios, not guaranteed results.',
+        'This forecast uses student-life records only. The full-time salary plan is not included.',
+        sampleMonths.length
+          ? `The recent run-rate uses ${sampleMonths.join(', ')}.`
+          : 'There is not enough student history to build a run-rate.',
+        'Transfers are not counted as living expenses.',
+      ]
   if (input.assumptions.manualRunRateIncomeCents !== null || input.assumptions.manualRunRateExpenseCents !== null) {
     notes.push('A manual run-rate override is active for months the workbook does not plan.')
   }
@@ -193,22 +200,11 @@ export function buildForecast(input: {
     let expenseCents: number | null = null
     let expenseSource = 'No expense assumption'
     if (plan && plannedExpenses.length) {
-      const plannedGroups = new Set(plannedExpenses.map((rule) => rule.categoryId))
-      const historical = historicalCategoryAverage(input.transactions, sampleMonths)
-      let variable = 0
-      let usedHistory = false
-      for (const [categoryId, cents] of historical) {
-        if (plannedGroups.has(categoryId)) continue
-        if (isInsurance(categoryId)) continue
-        if (isTransport(categoryId) && plannedExpenses.some((rule) => isTransport(rule.categoryId))) continue
-        variable += cents
-        usedHistory = true
-      }
       const planned = plannedExpenses.reduce((sum, rule) => sum + rule.amountCents, 0)
-      expenseCents = Math.round((planned + variable) * scenario.expenseFactor)
-      expenseSource = usedHistory ? 'Workbook plan plus recent average for categories it does not list' : 'Workbook plan only'
-      rowNotes.push('Planned zeros were not treated as confirmed spending.')
-    } else if (runExpense !== null) {
+      expenseCents = Math.round(planned * scenario.expenseFactor)
+      expenseSource = 'Full-time plan only'
+      rowNotes.push('Planned zeros were not treated as confirmed spending. Student-life costs are not added.')
+    } else if (!plan && runExpense !== null) {
       expenseCents = Math.round(runExpense * scenario.expenseFactor)
       expenseSource = input.assumptions.manualRunRateExpenseCents !== null ? 'Manual expense assumption' : 'Average of recent actual months'
     }
@@ -272,26 +268,4 @@ export function buildForecast(input: {
     }
   })
   return { months, assumptions: notes, scenario }
-}
-
-function historicalCategoryAverage(transactions: Transaction[], months: string[]): Map<string, number> {
-  const totals = new Map<string, number>()
-  if (months.length === 0) return totals
-  for (const month of months) {
-    for (const transaction of transactions) {
-      if (transaction.origin !== 'actual' || transaction.kind !== 'expense') continue
-      if (transaction.date.slice(0, 7) !== month) continue
-      totals.set(transaction.categoryId, (totals.get(transaction.categoryId) ?? 0) + transaction.amountCents)
-    }
-  }
-  for (const [key, value] of totals) totals.set(key, Math.round(value / months.length))
-  return totals
-}
-
-function isInsurance(categoryId: string): boolean {
-  return categoryId.includes('insurance')
-}
-
-function isTransport(categoryId: string): boolean {
-  return /travel|ticket|deutschland|trip|transport/.test(categoryId)
 }

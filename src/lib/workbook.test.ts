@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { chapterOf } from './chapter'
 import { debtWorkbookBalance } from './calc'
 import { estimatePayslip, plannedSip } from './forecast'
 import { parseWorkbook } from './parseWorkbook'
@@ -23,6 +24,11 @@ describe('expense tracker workbook', () => {
     expect(income.reduce((sum, transaction) => sum + transaction.amountCents, 0)).toBe(3693100)
     expect(transfers.reduce((sum, transaction) => sum + transaction.amountCents, 0)).toBe(43200)
     expect(result.transactions.some((transaction) => transaction.origin === 'forecast')).toBe(false)
+    expect(result.transactions.every((transaction) => chapterOf(transaction) === 'student')).toBe(true)
+    expect(result.recurring.every((rule) => chapterOf(rule) === 'employed')).toBe(true)
+    expect(result.debts.every((debt) => chapterOf(debt) === 'student')).toBe(true)
+    expect(result.goals.every((goal) => chapterOf(goal) === 'employed')).toBe(true)
+    expect(result.incomePlans.every((plan) => chapterOf(plan) === 'employed')).toBe(true)
     expect(result.transactions.some((transaction) => transaction.categoryId === 'food' && transaction.date.startsWith('2025-07'))).toBe(false)
     expect(result.transactions.some((transaction) => transaction.categoryId === 'food' && transaction.date.startsWith('2025-06') && transaction.amountCents === 61000)).toBe(true)
     const julyRestaurant = result.transactions.filter((transaction) => transaction.categoryId === 'restaurant' && transaction.date.startsWith('2025-07'))

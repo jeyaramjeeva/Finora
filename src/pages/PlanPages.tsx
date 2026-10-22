@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Badge, Empty, Field, Modal, Notice, Panel, Progress } from '../components/ui'
+import { activeChapter, planSnapshot, scopeState } from '../lib/chapter'
 import { debtDisplayedBalance, debtWorkbookBalance, monthFigures, repaymentScenario } from '../lib/calc'
 import { uid } from '../lib/createState'
 import { daysInMonth, monthLabel, monthsBetween } from '../lib/dates'
@@ -12,16 +13,18 @@ import { useStore } from '../state/store'
 type ScenarioIdFix = 'conservative' | 'expected' | 'optimistic'
 
 export function SavingsPage() {
-  const { state, saveGoal, deleteGoal } = useStore()
+  const { state: full, saveGoal, deleteGoal } = useStore()
+  const state = scopeState(full)
   const month = state.filters.month
-  const figures = month === 'all' ? null : monthFigures(state.transactions, month, state.coverage.find((row) => row.month === month))
+  const employed = activeChapter(state) === 'employed'
+  const figures = month === 'all' ? null : employed ? planSnapshot(state, month) : monthFigures(state.transactions, month, state.coverage.find((row) => row.month === month))
   const [open, setOpen] = useState(false)
   return (
     <div className="stack">
       <header className="page-head">
         <div>
           <h1>Savings and goals</h1>
-          <p>Actual savings are income minus expenses and debt payments. Transfers into savings are not expenses. Unknown balances stay unknown.</p>
+          <p>{employed ? 'Planned savings from the full-time sheet. Student savings and student spending are not included. Account balances stay unknown until you enter them.' : 'Student-life savings are income minus expenses and debt payments. Full-time SIP, gold, and emergency plans are not included.'}</p>
         </div>
         <button type="button" className="btn primary" onClick={() => setOpen(true)}>Add goal</button>
       </header>
@@ -33,8 +36,8 @@ export function SavingsPage() {
       <div className="grid-2">
         {state.goals.map((goal) => <GoalCard key={goal.id} goal={goal} onSave={saveGoal} onDelete={deleteGoal} />)}
       </div>
-      {state.goals.length === 0 ? <Empty title="No goals yet" body="The workbook named investment plans but did not include target amounts or balances." /> : null}
-      {open ? <GoalModal onClose={() => setOpen(false)} onSave={(goal) => { saveGoal(goal); setOpen(false) }} /> : null}
+      {state.goals.length === 0 ? <Empty title="No goals in this life" body={employed ? 'The workbook named investment plans but did not include target amounts or balances.' : 'Employment savings goals stay in Full-time.'} /> : null}
+      {open ? <GoalModal chapter={activeChapter(full)} onClose={() => setOpen(false)} onSave={(goal) => { saveGoal(goal); setOpen(false) }} /> : null}
     </div>
   )
 }
@@ -69,7 +72,7 @@ function monthlyNeeded(goal: Goal): string {
   return `${formatMoney(Math.ceil(remaining / months))} for ${months} months`
 }
 
-function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Goal) => void }) {
+function GoalModal({ chapter, onClose, onSave }: { chapter: 'student' | 'employed'; onClose: () => void; onSave: (goal: Goal) => void }) {
   return (
     <Modal title="Add goal" onClose={onClose}>
       <form className="form-grid" onSubmit={(event) => {
@@ -86,6 +89,7 @@ function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Go
           monthlyContributionCents: parseAmount(String(form.get('contribution') ?? '')),
           contributionEstimated: false,
           source: 'manual',
+          chapter,
           notes: 'Added in the dashboard.',
         })
       }}>
@@ -101,7 +105,8 @@ function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Go
 }
 
 export function DebtsPage() {
-  const { state, saveDebt, deleteDebt } = useStore()
+  const { state: full, saveDebt, deleteDebt } = useStore()
+  const state = scopeState(full)
   const [method, setMethod] = useState<'avalanche' | 'snowball'>('avalanche')
   const [extra, setExtra] = useState('0')
   const scenario = repaymentScenario(state.debts, method, parseAmount(extra) ?? 0, new Date().toISOString().slice(0, 7))
@@ -115,7 +120,7 @@ export function DebtsPage() {
         </div>
         <button type="button" className="btn primary" onClick={() => setOpen(true)}>Add debt</button>
       </header>
-      {state.debts.map((debt) => <DebtCard key={debt.id} debt={debt} onSave={saveDebt} onDelete={deleteDebt} />)}
+      {state.debts.length === 0 ? <Empty title={activeChapter(state) === 'employed' ? 'No debts in the full-time plan' : 'No debts in student life'} body={activeChapter(state) === 'employed' ? 'Anna and Appa repayments stay in Student life.' : 'Add a debt if you want to track it here.'} /> : state.debts.map((debt) => <DebtCard key={debt.id} debt={debt} onSave={saveDebt} onDelete={deleteDebt} />)}
       <Panel title="Repayment scenarios">
         <div className="filters">
           <select value={method} onChange={(event) => setMethod(event.target.value as 'avalanche' | 'snowball')}>
@@ -127,7 +132,7 @@ export function DebtsPage() {
         {scenario.ok ? <p>Estimated debt-free date {scenario.debtFreeMonth ?? 'now'}, {scenario.months} months, interest {formatMoney(scenario.interestCents ?? 0)}. Order: {scenario.order?.join(', ') || 'none'}.</p> : <Notice tone="warn">{scenario.reason}</Notice>}
         <p className="muted">Assumptions: fixed annual rates, no fees, minimums are paid every month, and the extra payment goes to one debt at a time. This is a projection, not a guarantee.</p>
       </Panel>
-      {open ? <DebtModal onClose={() => setOpen(false)} onSave={(debt) => { saveDebt(debt); setOpen(false) }} /> : null}
+      {open ? <DebtModal chapter={activeChapter(full)} onClose={() => setOpen(false)} onSave={(debt) => { saveDebt(debt); setOpen(false) }} /> : null}
     </div>
   )
 }
@@ -176,7 +181,7 @@ function DebtCard({ debt, onSave, onDelete }: { debt: Debt; onSave: (debt: Debt)
   )
 }
 
-function DebtModal({ onClose, onSave }: { onClose: () => void; onSave: (debt: Debt) => void }) {
+function DebtModal({ chapter, onClose, onSave }: { chapter: 'student' | 'employed'; onClose: () => void; onSave: (debt: Debt) => void }) {
   return (
     <Modal title="Add debt" onClose={onClose}>
       <form className="form-grid" onSubmit={(event) => {
@@ -195,6 +200,7 @@ function DebtModal({ onClose, onSave }: { onClose: () => void; onSave: (debt: De
           confirmedBalanceCents: parseAmount(String(form.get('balance') ?? '')),
           dueDay: form.get('due') ? Number(form.get('due')) : null,
           source: 'manual',
+          chapter,
           notes: 'Added in the dashboard.',
         })
       }}>
@@ -211,7 +217,8 @@ function DebtModal({ onClose, onSave }: { onClose: () => void; onSave: (debt: De
 }
 
 export function CalendarPage() {
-  const { state, saveBill } = useStore()
+  const { state: full, saveBill } = useStore()
+  const state = scopeState(full)
   const month = state.filters.month === 'all' ? new Date().toISOString().slice(0, 7) : state.filters.month
   const [year, mon] = month.split('-').map(Number)
   const first = new Date(Date.UTC(year, mon - 1, 1)).getUTCDay()
@@ -271,7 +278,8 @@ export function CalendarPage() {
 }
 
 export function ForecastPage() {
-  const { state, update } = useStore()
+  const { state: full, update } = useStore()
+  const state = scopeState(full)
   const [count, setCount] = useState<6 | 12>(6)
   const [scenario, setScenario] = useState<ScenarioIdFix>('expected')
   const model = forecastFor(state, count, scenario)

@@ -216,7 +216,16 @@ function Shell() {
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">€</div>
+          <div className="brand-mark" style={{ overflow: 'hidden' }}>
+            <img
+              src="/brand-icon.png"
+              alt="Logo"
+              style={{ width: 22, height: 22, objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+          </div>
           <div className="brand-copy">
             <strong>Cashmetry</strong>
             <small>Local &amp; Encrypted</small>

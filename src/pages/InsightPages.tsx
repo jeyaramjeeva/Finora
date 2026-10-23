@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
+import { CategoryBadge } from '../components/CategoryBadge'
 import { scopeState } from '../lib/chapter'
 import { findDuplicateGroups } from '../lib/duplicates'
 import { monthLabel } from '../lib/dates'
@@ -215,7 +216,12 @@ export function ReportsPage() {
                   {drillRows.map((r) => (
                     <tr key={r.id}>
                       <td>{r.date}</td>
-                      <td>{r.description || categoryName(state, r.categoryId)}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <CategoryBadge category={r.categoryId} size="small" />
+                          <span>{r.description || categoryName(state, r.categoryId)}</span>
+                        </div>
+                      </td>
                       <td className="num">{formatMoney(r.amountCents)}</td>
                       <td className="meta">{r.account || '—'}</td>
                     </tr>

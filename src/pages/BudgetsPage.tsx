@@ -5,6 +5,7 @@ import { Badge, Empty, Panel, Progress } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { EuroInput } from '../components/EuroInput'
+import { CategoryBadge } from '../components/CategoryBadge'
 import { applyBudget, budgetStatus, eligibleSpend, projectMonthEnd } from '../lib/calc'
 import { addMonths } from '../lib/dates'
 import { formatMoney, formatPercent } from '../lib/money'
@@ -204,7 +205,7 @@ export function BudgetsPage() {
                 return (
                   <tr key={row.category.id}>
                     <td>
-                      <strong>{row.category.name}</strong>
+                      <CategoryBadge category={row.category.id} label={row.category.name} />
                     </td>
                     <td>
                       <span className="badge">

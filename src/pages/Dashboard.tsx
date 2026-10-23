@@ -16,6 +16,8 @@ import { Badge, Empty, Notice, Panel } from '../components/ui'
 import { ExecutiveBriefCard } from '../components/ExecutiveBriefCard'
 import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
+import { CashflowHealthCard } from '../components/CashflowHealthCard'
+import { CategoryBadge } from '../components/CategoryBadge'
 import { activeChapter, employedMonths, planCategoryTotals, scopeState } from '../lib/chapter'
 import { addMonths, shortMonth } from '../lib/dates'
 import { unusualIncreases } from '../lib/insights'
@@ -74,6 +76,10 @@ export function Dashboard() {
   const savingsBalance = knownSavingsBalance(state)
   const budgetMonth = months.length === 1 ? months[0] : state.filters.month
   const budgets = budgetSummary(state, budgetMonth)
+  const totalMonthlyBudgetCents = useMemo(
+    () => state.budgets.filter((b) => b.period === 'month').reduce((sum, b) => sum + b.amountCents, 0),
+    [state.budgets]
+  )
   const planBills = state.recurring.filter((rule) => rule.kind === 'expense' && activeMonths.some((month) => month >= rule.startMonth && (!rule.endMonth || month <= rule.endMonth)))
   const alerts = unusualIncreases(state.transactions).filter((item) => activeMonths.includes(item.month)).slice(0, 4)
   const drill = state.transactions
@@ -288,6 +294,16 @@ export function Dashboard() {
         />
       </section>
 
+      {/* Cashflow Health & Monthly Budget Gauge (from finora) */}
+      <CashflowHealthCard
+        incomeCents={figures.incomeCents ?? 0}
+        expenseCents={figures.expenseCents ?? 0}
+        savingsCents={figures.savingsCents ?? 0}
+        savingsRate={figures.savingsRate}
+        budgetCents={totalMonthlyBudgetCents}
+        periodLabel={months.length === 1 ? months[0] : months.length > 1 ? `${months.length} Months Active` : (employed ? 'Full-Time Plan' : 'All Months')}
+      />
+
       {/* Main Charts Grid with ChartChrome wrapper */}
       <div className="grid-2">
         <ChartChrome
@@ -454,7 +470,12 @@ export function Dashboard() {
                   {drill.map((t) => (
                     <tr key={t.id}>
                       <td>{t.date}</td>
-                      <td>{t.description || categoryName(state, t.categoryId)}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <CategoryBadge category={t.categoryId} size="small" />
+                          <span>{t.description || categoryName(state, t.categoryId)}</span>
+                        </div>
+                      </td>
                       <td className="num">{formatMoney(t.amountCents)}</td>
                       <td className="meta">{t.sourceSheet ? `${t.sourceSheet} ${t.sourceCell ?? ''}` : t.source}</td>
                     </tr>

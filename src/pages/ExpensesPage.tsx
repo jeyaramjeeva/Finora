@@ -8,9 +8,12 @@ import {
   Download,
   PlusCircle,
   Search,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { Empty, Field, Modal, Notice, Panel } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
+import { CategoryBadge } from '../components/CategoryBadge'
 import { categoryFromName } from '../lib/categories'
 import { isValidIsoDate } from '../lib/dates'
 import { formatMoney, parseAmount } from '../lib/money'
@@ -447,9 +450,7 @@ export function ExpensesPage() {
                         {transaction.notes ? <p className="muted" style={{ fontSize: '0.75rem', margin: '2px 0 0' }}>{transaction.notes}</p> : null}
                       </td>
                       <td>
-                        <span className="badge">
-                          {categoryName(state, transaction.categoryId)}
-                        </span>
+                        <CategoryBadge category={transaction.categoryId} label={categoryName(state, transaction.categoryId)} />
                       </td>
                       <td>
                         <span className="muted" style={{ fontSize: '0.78rem' }}>
@@ -461,30 +462,32 @@ export function ExpensesPage() {
                           {transaction.account || '—'}
                         </span>
                       </td>
-                      <td className={`num ${isExpense ? 'tone-bad' : isIncome ? 'tone-good' : ''}`} style={{ fontWeight: 600 }}>
-                        {formatMoney(transaction.amountCents)}
+                      <td className={`num ${isExpense ? 'tone-bad' : isIncome ? 'tone-good' : ''}`} style={{ fontWeight: 700 }}>
+                        {isIncome ? '+' : isExpense ? '-' : ''}{formatMoney(transaction.amountCents)}
                       </td>
                       <td className="meta" style={{ fontSize: '0.78rem' }}>
                         {transaction.sourceSheet ? `${transaction.sourceSheet} ${transaction.sourceCell ?? ''}` : transaction.source}
                         {transaction.recurring ? ' · Recurring' : ''}
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                           <button
                             type="button"
                             className="btn ghost"
-                            style={{ fontSize: '0.74rem', padding: '2px 6px' }}
+                            style={{ padding: '3px 6px' }}
+                            title="Edit transaction"
                             onClick={() => { setError(''); setEditing(transaction) }}
                           >
-                            Edit
+                            <Pencil size={14} />
                           </button>
                           <button
                             type="button"
                             className="btn ghost danger"
-                            style={{ fontSize: '0.74rem', padding: '2px 6px' }}
+                            style={{ padding: '3px 6px' }}
+                            title="Delete transaction"
                             onClick={() => deleteTransaction(transaction.id)}
                           >
-                            ✕
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>

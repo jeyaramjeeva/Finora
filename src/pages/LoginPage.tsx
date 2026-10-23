@@ -35,7 +35,6 @@ export function LoginPage({ onSuccess }: { onSuccess: () => void }) {
       <form className="login-card" onSubmit={submit}>
         <img src="/cashmetry-logo.png" alt="" width={44} height={44} />
         <h1>Cashmetry</h1>
-        <p>Sign in as Jeeva Jeyaram.</p>
         <label>
           <span>Name</span>
           <input

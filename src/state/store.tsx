@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import seedData from '../data/seed.json'
 import { createState, isAppState, uid } from '../lib/createState'
 import { parseWorkbook } from '../lib/parseWorkbook'
 import { loadState, saveState, saveWorkbook } from '../lib/storage'
@@ -29,7 +30,10 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-function blank(): AppState {
+function defaultState(): AppState {
+  if (isAppState(seedData)) {
+    return seedData
+  }
   return {
     version: 1,
     transactions: [],
@@ -60,12 +64,12 @@ function blank(): AppState {
     suppressedIds: [],
     settings: { theme: 'light', sidebarCollapsed: false, assumptionsLocked: false },
     lastImportAt: null,
-    filters: { month: 'all', categoryId: 'all', kind: 'all', origin: 'actual', chapter: 'student' },
+    filters: { month: '2026-02', categoryId: 'all', kind: 'all', origin: 'actual', chapter: 'student' },
   }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(blank)
+  const [state, setState] = useState<AppState>(defaultState)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -74,18 +78,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const saved = await loadState()
         if (!active) return
-        if (saved && isAppState(saved)) {
+        if (saved && isAppState(saved) && saved.transactions.length > 0) {
           setState(saved)
           return
         }
-        const response = await fetch('/seed.json')
-        if (response.ok) {
-          const seed = await response.json()
-          if (isAppState(seed)) {
-            setState(seed)
-            await saveState(seed)
-          }
-        }
+        // Fall back to bundled initial seed if IndexedDB was empty or had 0 transactions
+        const initial = defaultState()
+        setState(initial)
+        await saveState(initial)
       } finally {
         if (active) setReady(true)
       }

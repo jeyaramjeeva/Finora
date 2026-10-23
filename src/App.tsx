@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   Upload,
+  LogOut,
 } from 'lucide-react'
 import { CommandPalette } from './components/CommandPalette'
 import { ExcelUploadModal } from './components/ExcelUploadModal'
@@ -31,6 +32,7 @@ import { IncomePage } from './pages/IncomePage'
 import { BudgetsPage } from './pages/BudgetsPage'
 import { CalendarPage, DebtsPage, ForecastPage, SavingsPage } from './pages/PlanPages'
 import { DataPage, ReportsPage } from './pages/InsightPages'
+import { LoginPage } from './pages/LoginPage'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,14 +48,34 @@ const NAV = [
 ] as const
 
 export function App() {
+  const [auth, setAuth] = useState<'checking' | 'in' | 'out'>('checking')
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/session', { credentials: 'same-origin' })
+      .then((response) => response.json())
+      .then((body: { ok?: boolean }) => {
+        if (active) setAuth(body.ok ? 'in' : 'out')
+      })
+      .catch(() => {
+        if (active) setAuth('out')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (auth === 'checking') return <main className="login-screen"><p>Checking sign-in…</p></main>
+  if (auth === 'out') return <LoginPage onSuccess={() => setAuth('in')} />
+
   return (
     <StoreProvider>
-      <Shell />
+      <Shell onLogout={() => setAuth('out')} />
     </StoreProvider>
   )
 }
 
-function Shell() {
+function Shell({ onLogout }: { onLogout: () => void }) {
   const { state, ready, setFilters, update, commitImport } = useStore()
   const view = scopeState(state)
   const chapter = activeChapter(state)
@@ -267,7 +289,18 @@ function Shell() {
             {state.settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             <span className="nav-label">{state.settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
           </button>
-          <small>Data stored locally in browser IndexedDB.</small>
+          <button
+            type="button"
+            className="btn ghost"
+            style={{ width: '100%', justifyContent: 'flex-start' }}
+            onClick={() => {
+              void fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).finally(onLogout)
+            }}
+          >
+            <LogOut size={16} />
+            <span className="nav-label">Sign out</span>
+          </button>
+          <small>Signed in as Jeeva Jeyaram.</small>
         </div>
       </aside>
 

@@ -18,6 +18,8 @@ import { Wallet, Briefcase, Landmark, ShieldCheck } from 'lucide-react'
 import { Badge, Field, Panel } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
+import { GermanPayslipCalculator } from '../components/GermanPayslipCalculator'
+import { DualCurrencyRemittance } from '../components/DualCurrencyRemittance'
 import { activeChapter, scopeState } from '../lib/chapter'
 import { monthLabel } from '../lib/dates'
 import { estimatePayslip } from '../lib/forecast'
@@ -135,6 +137,23 @@ export function IncomePage() {
           hint={employed ? 'Tax, pension, health & care' : 'Student social security privilege'}
         />
       </section>
+
+      {/* German Payslip Simulator & Dual Currency Remittance Tool */}
+      <div className="grid-2">
+        <GermanPayslipCalculator
+          initialGrossMonthlyCents={plan?.grossMonthlyCents ?? 350000}
+          onApplyToAssumptions={(netCents) => {
+            update((current) => ({
+              ...current,
+              assumptions: {
+                ...current.assumptions,
+                takeHomeMonthlyCents: netCents,
+              },
+            }))
+          }}
+        />
+        <DualCurrencyRemittance />
+      </div>
 
       {/* Charts Grid */}
       <div className="grid-2">

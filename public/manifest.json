@@ -1,0 +1,22 @@
+{
+  "name": "Cashmetry — Personal Finance Cockpit",
+  "short_name": "Cashmetry",
+  "description": "Premium personal finance, German salary analysis, expense tracking, and wealth cockpit.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/cashmetry-mark.png",
+      "sizes": "600x600",
+      "type": "image/png"
+    }
+  ]
+}

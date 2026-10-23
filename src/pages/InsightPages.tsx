@@ -30,6 +30,9 @@ import { parseCsv, transactionsToCsv, workbookFromTransactions } from '../lib/xl
 import { eligibleSpend, outstandingDebt } from '../lib/calc'
 import { categoryFromName } from '../lib/categories'
 import { ExcelUploadModal } from '../components/ExcelUploadModal'
+import { BankCsvImporter } from '../components/BankCsvImporter'
+import { CategoryMergeModal } from '../components/CategoryMergeModal'
+import { generateBlankExpenseTemplate } from '../lib/excelTemplate'
 
 export function ReportsPage() {
   const { state: full, setFilters } = useStore()
@@ -387,8 +390,10 @@ function yearComparison(transactions: Transaction[], month: string) {
 }
 
 export function DataPage() {
-  const { state, commitImport, replaceState } = useStore()
+  const { state, commitImport, replaceState, update } = useStore()
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [bankCsvOpen, setBankCsvOpen] = useState(false)
+  const [mergeModalOpen, setMergeModalOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [csvRows, setCsvRows] = useState<Transaction[]>([])
   const [csvCategories, setCsvCategories] = useState<Category[]>([])
@@ -566,6 +571,36 @@ export function DataPage() {
         </div>
       </Panel>
 
+      {/* German Bank CSV Importers & Category Utilities */}
+      <Panel title="Advanced Bank Importers &amp; Ledger Maintenance">
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => setBankCsvOpen(true)}
+          >
+            Import German Bank CSV (N26 / Sparkasse / DKB / Revolut)
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => setMergeModalOpen(true)}
+          >
+            Merge &amp; Consolidate Categories
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              const blob = generateBlankExpenseTemplate()
+              download('Expense Tracker Blank Template.xlsx', blob)
+            }}
+          >
+            Download Expense Tracker Blank Template (.xlsx)
+          </button>
+        </div>
+      </Panel>
+
       {/* Export & Backup */}
       <Panel title="Export Financial Data &amp; Local Backup">
         <div className="filters">
@@ -598,6 +633,35 @@ export function DataPage() {
           </button>
         </div>
       </Panel>
+
+      <BankCsvImporter
+        open={bankCsvOpen}
+        onClose={() => setBankCsvOpen(false)}
+        existingTransactions={state.transactions}
+        onCommitImport={(newTxs) => {
+          update((current) => ({
+            ...current,
+            transactions: [...current.transactions, ...newTxs],
+          }))
+          setMessage(`Imported ${newTxs.length} transactions from bank statement.`)
+          setTimeout(() => setMessage(''), 5000)
+        }}
+      />
+
+      <CategoryMergeModal
+        open={mergeModalOpen}
+        categories={state.categories}
+        onClose={() => setMergeModalOpen(false)}
+        onMerge={(sourceId, targetId) => {
+          update((current) => ({
+            ...current,
+            transactions: current.transactions.map((t) => t.categoryId === sourceId ? { ...t, categoryId: targetId } : t),
+            categories: current.categories.filter((c) => c.id !== sourceId),
+          }))
+          setMessage(`Successfully merged categories.`)
+          setTimeout(() => setMessage(''), 5000)
+        }}
+      />
     </div>
   )
 }

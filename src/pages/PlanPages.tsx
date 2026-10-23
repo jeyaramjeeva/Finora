@@ -15,6 +15,9 @@ import {
 import { Badge, Empty, Field, Modal, Notice, Panel, Progress } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
+import { WealthPortfolioTracker } from '../components/WealthPortfolioTracker'
+import { DebtPayoffSimulator } from '../components/DebtPayoffSimulator'
+import { SubscriptionDetector } from '../components/SubscriptionDetector'
 import { activeChapter, planSnapshot, scopeState } from '../lib/chapter'
 import { debtDisplayedBalance, debtWorkbookBalance, monthFigures, outstandingDebt, repaymentScenario } from '../lib/calc'
 import { uid } from '../lib/createState'
@@ -117,6 +120,9 @@ export function SavingsPage() {
           ))}
         </div>
       </Panel>
+
+      {/* Multi-Bucket Wealth, Compounding & Gold Portfolio Tracker */}
+      <WealthPortfolioTracker />
 
       {/* Financial Goals Grid */}
       <Panel title="Configured Savings Goals &amp; Progress">
@@ -311,6 +317,9 @@ export function DebtsPage() {
           hint="€12,760 total · €1,260 repaid"
         />
       </section>
+
+      {/* Debt Acceleration Simulator (Avalanche vs Snowball) */}
+      <DebtPayoffSimulator debts={debts} />
 
       {/* Debts List */}
       <Panel title="Loan Records &amp; Repayments Log">
@@ -647,6 +656,9 @@ export function CalendarPage() {
           hint="Income minus scheduled obligations"
         />
       </section>
+
+      {/* Subscription & Recurring Leaks Detector */}
+      <SubscriptionDetector transactions={state.transactions} />
 
       {/* Unallocated Day Warning */}
       {unknown.length ? (

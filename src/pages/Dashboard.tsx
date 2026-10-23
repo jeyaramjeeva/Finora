@@ -23,6 +23,11 @@ import { FinoraTrendChart } from '../components/FinoraTrendChart'
 import { FinoraQuickAdd } from '../components/FinoraQuickAdd'
 import { FinoraCategoryBreakdown } from '../components/FinoraCategoryBreakdown'
 import { FinoraRecentTransactions } from '../components/FinoraRecentTransactions'
+import { CashflowSankey } from '../components/CashflowSankey'
+import { FiftyThirtyTwentyCard } from '../components/FiftyThirtyTwentyCard'
+import { CalendarSpendingHeatmap } from '../components/CalendarSpendingHeatmap'
+import { DrillDownDrawer } from '../components/DrillDownDrawer'
+import type { Transaction } from '../lib/types'
 import { activeChapter, employedMonths, planCategoryTotals, scopeState } from '../lib/chapter'
 import { addMonths, shortMonth } from '../lib/dates'
 import { unusualIncreases } from '../lib/insights'
@@ -59,6 +64,11 @@ export function Dashboard() {
   const [viewName, setViewName] = useState('')
   const writtenMonth = useRef(state.filters.month)
 
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerTitle, setDrawerTitle] = useState('')
+  const [drawerSubtitle, setDrawerSubtitle] = useState<string | undefined>()
+  const [drawerTransactions, setDrawerTransactions] = useState<Transaction[]>([])
+
   useEffect(() => {
     if (state.filters.month === writtenMonth.current) return
     writtenMonth.current = state.filters.month
@@ -77,6 +87,26 @@ export function Dashboard() {
   }, [months, state])
   const totals = employed ? planCategoryTotals(state, activeMonths) : categoryTotals(state.transactions.filter((transaction) => activeMonths.includes(transaction.date.slice(0, 7))))
   const slices = totals.slice(0, 8).map((item) => ({ id: item.id, name: categoryName(state, item.id), value: item.cents / 100, cents: item.cents }))
+
+  const { needsCents, wantsCents } = useMemo(() => {
+    let needs = 0
+    let wants = 0
+    const isNeedCategory = (id: string) => {
+      const lower = id.toLowerCase()
+      return (
+        lower.includes('rent') || lower.includes('grocer') || lower.includes('util') ||
+        lower.includes('electr') || lower.includes('heat') || lower.includes('phone') ||
+        lower.includes('intern') || lower.includes('insur') || lower.includes('loan') ||
+        lower.includes('debt') || lower.includes('repay') || lower.includes('educ') ||
+        lower.includes('transp')
+      )
+    }
+    for (const item of totals) {
+      if (isNeedCategory(item.id)) needs += item.cents
+      else wants += item.cents
+    }
+    return { needsCents: needs, wantsCents: wants }
+  }, [totals])
   const debt = debtSummary(state)
   const savingsBalance = knownSavingsBalance(state)
   const budgetMonth = months.length === 1 ? months[0] : state.filters.month
@@ -142,6 +172,13 @@ export function Dashboard() {
   }
   function pickCategory(id: string) {
     setCategoryId((current) => current === id ? null : id)
+    const catTxs = state.transactions.filter((t) => t.categoryId === id && (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7))))
+    if (catTxs.length > 0) {
+      setDrawerTitle(`${categoryName(state, id)} Ledger`)
+      setDrawerSubtitle(`${catTxs.length} transaction${catTxs.length === 1 ? '' : 's'} across selected period`)
+      setDrawerTransactions(catTxs)
+      setDrawerOpen(true)
+    }
   }
   function saveView() {
     if (!viewName.trim()) return
@@ -405,6 +442,37 @@ export function Dashboard() {
         periodLabel={months.length === 1 ? months[0] : months.length > 1 ? `${months.length} Months Active` : (employed ? 'Full-Time Plan' : 'All Months')}
       />
 
+      {/* Visual Cashflow Distribution & 50/30/20 Rule Balance */}
+      <div className="grid-2">
+        <CashflowSankey
+          incomeCents={figures.incomeCents ?? 0}
+          fixedExpenseCents={needsCents}
+          variableExpenseCents={wantsCents}
+          debtPaymentCents={figures.debtPaymentCents ?? 0}
+          savingsCents={figures.savingsCents ?? 0}
+          investmentsCents={figures.savingsContributionCents ?? 0}
+        />
+        <FiftyThirtyTwentyCard
+          incomeCents={figures.incomeCents ?? 0}
+          needsCents={needsCents}
+          wantsCents={wantsCents}
+          savingsCents={figures.savingsCents ?? 0}
+        />
+      </div>
+
+      {/* GitHub-Style 31-Day Spending Heatmap */}
+      <CalendarSpendingHeatmap
+        month={months.length === 1 ? months[0] : (state.filters.month !== 'all' ? state.filters.month : '2026-02')}
+        transactions={state.transactions}
+        onDayClick={(dateStr) => {
+          const dayTxs = state.transactions.filter((t) => t.date === dateStr && (t.kind === 'expense' || t.kind === 'debt_payment'))
+          setDrawerTitle(`Spending on ${dateStr}`)
+          setDrawerSubtitle(`${dayTxs.length} transaction${dayTxs.length === 1 ? '' : 's'}`)
+          setDrawerTransactions(dayTxs)
+          setDrawerOpen(true)
+        }}
+      />
+
       {/* Main Charts Grid with ChartChrome wrapper */}
       <div className="grid-2">
         <ChartChrome
@@ -587,6 +655,14 @@ export function Dashboard() {
           )}
         </Panel>
       ) : null}
+
+      <DrillDownDrawer
+        open={drawerOpen}
+        title={drawerTitle}
+        subtitle={drawerSubtitle}
+        transactions={drawerTransactions}
+        onClose={() => setDrawerOpen(false)}
+      />
     </div>
   )
 }

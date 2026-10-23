@@ -6,6 +6,7 @@ import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { EuroInput } from '../components/EuroInput'
 import { CategoryBadge } from '../components/CategoryBadge'
+import { SpendingVelocityCard } from '../components/SpendingVelocityCard'
 import { applyBudget, budgetStatus, eligibleSpend, projectMonthEnd } from '../lib/calc'
 import { addMonths } from '../lib/dates'
 import { formatMoney, formatPercent } from '../lib/money'
@@ -85,6 +86,17 @@ export function BudgetsPage() {
   const totalSpentCents = rows.reduce((acc, r) => acc + r.spent, 0)
   const totalRemainingCents = totalBudgetCents - totalSpentCents
   const totalUtilisation = totalBudgetCents > 0 ? (totalSpentCents / totalBudgetCents) * 100 : null
+
+  const { daysElapsed, totalDaysInMonth } = useMemo(() => {
+    const parts = (month || '2026-02').split('-')
+    const y = parseInt(parts[0], 10) || 2026
+    const m = parseInt(parts[1], 10) || 2
+    const daysInMonth = new Date(y, m, 0).getDate()
+    const now = new Date()
+    const isCurrentMonth = now.getFullYear() === y && (now.getMonth() + 1) === m
+    const elapsed = isCurrentMonth ? Math.min(daysInMonth, now.getDate()) : daysInMonth
+    return { daysElapsed: elapsed, totalDaysInMonth: daysInMonth }
+  }, [month])
 
   // Unusual increases
   const alerts = useMemo(
@@ -167,6 +179,14 @@ export function BudgetsPage() {
           hint={totalUtilisation !== null ? `${formatMoney(totalSpentCents)} spent of ${formatMoney(totalBudgetCents)}` : 'Set budgets to track'}
         />
       </section>
+
+      {/* Spending Velocity & Burn Rate Card */}
+      <SpendingVelocityCard
+        currentSpendCents={totalSpentCents}
+        monthlyBudgetCents={totalBudgetCents}
+        daysElapsed={daysElapsed}
+        totalDaysInMonth={totalDaysInMonth}
+      />
 
       {/* Budgets Table */}
       <Panel

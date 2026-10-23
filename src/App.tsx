@@ -18,9 +18,17 @@ import {
   Moon,
   Upload,
   LogOut,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  ShieldCheck,
 } from 'lucide-react'
 import { CommandPalette } from './components/CommandPalette'
 import { ExcelUploadModal } from './components/ExcelUploadModal'
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal'
+import { PinLockModal } from './components/PinLockModal'
+import { ConfettiCanvas } from './components/Confetti'
+import { initStealthMode, isStealthMode, shouldLock, toggleStealthMode } from './lib/privacy'
 import { activeChapter, chapterOf, scopeState } from './lib/chapter'
 import { latestActualMonth } from './lib/createState'
 import { StoreProvider, useStore } from './state/store'
@@ -96,6 +104,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const [droppedFile, setDroppedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [stealth, setStealth] = useState(isStealthMode)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [locked, setLocked] = useState(shouldLock)
 
   // Sync data-theme attribute on document root
   useEffect(() => {
@@ -103,10 +114,85 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }, [state.settings.theme])
 
   useEffect(() => {
+    initStealthMode()
+    const onStealthChange = (e: Event) => {
+      const custom = e as CustomEvent<boolean>
+      setStealth(Boolean(custom.detail))
+    }
+    window.addEventListener('cashmetry-stealth-change', onStealthChange)
+    return () => window.removeEventListener('cashmetry-stealth-change', onStealthChange)
+  }, [])
+
+  useEffect(() => {
+    let gPressed = false
+    let gTimeout: number
+
     const onKey = (event: KeyboardEvent) => {
+      // Don't trigger shortcuts inside text inputs
+      const target = event.target as HTMLElement
+      const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setPalette((current) => !current)
+        return
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault()
+        const next = toggleStealthMode()
+        setStealth(next)
+        setToast(next ? 'Privacy Stealth Mode Active (figures blurred)' : 'Stealth Mode Deactivated')
+        setTimeout(() => setToast(null), 3000)
+        return
+      }
+
+      if (!inInput) {
+        if (event.key === '?') {
+          event.preventDefault()
+          setShortcutsOpen((s) => !s)
+          return
+        }
+        if (event.key === '/') {
+          event.preventDefault()
+          setPalette(true)
+          return
+        }
+        if (event.key.toLowerCase() === 'n') {
+          event.preventDefault()
+          const input = document.getElementById('quick-add-desc')
+          input?.focus()
+          return
+        }
+
+        // Two-key G sequences (G D, G E, G I, etc.)
+        if (event.key.toLowerCase() === 'g') {
+          gPressed = true
+          clearTimeout(gTimeout)
+          gTimeout = window.setTimeout(() => { gPressed = false }, 1000)
+          return
+        }
+
+        if (gPressed) {
+          gPressed = false
+          const k = event.key.toLowerCase()
+          const pageMap: Record<string, string> = {
+            d: 'dashboard',
+            i: 'income',
+            e: 'expenses',
+            b: 'budgets',
+            s: 'savings',
+            l: 'debts',
+            c: 'calendar',
+            f: 'forecast',
+            r: 'reports',
+            x: 'data',
+          }
+          if (pageMap[k]) {
+            event.preventDefault()
+            window.location.hash = pageMap[k]
+          }
+        }
       }
     }
     const onOpenUpload = () => {
@@ -118,6 +204,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('open-excel-upload', onOpenUpload)
+      clearTimeout(gTimeout)
     }
   }, [])
 
@@ -280,6 +367,10 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </nav>
 
         <div className="sidebar-foot">
+          <div className="telemetry-badge" title="Zero Telemetry: All calculations, passwords, and records stay strictly client-side in your browser.">
+            <ShieldCheck size={14} style={{ color: 'var(--ok)' }} />
+            <span>100% Client-Side · Zero Telemetry</span>
+          </div>
           <button
             type="button"
             className="btn ghost"
@@ -394,7 +485,33 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <span className="badge">Plan only</span>
           )}
 
-          <div className="grow">
+          <div className="grow" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <button
+              type="button"
+              className={`btn ghost ${stealth ? 'tone-warn' : ''}`}
+              title={stealth ? 'Stealth Mode is Active (Click to unblur)' : 'Privacy Stealth Mode (Ctrl+Shift+P)'}
+              aria-label="Toggle Privacy Stealth Mode"
+              onClick={() => {
+                const next = toggleStealthMode()
+                setStealth(next)
+                setToast(next ? 'Privacy Stealth Mode Active (figures blurred)' : 'Stealth Mode Deactivated')
+                setTimeout(() => setToast(null), 3000)
+              }}
+            >
+              {stealth ? <EyeOff size={16} /> : <Eye size={16} />}
+              <span className="hide-on-mobile">{stealth ? 'Stealth ON' : 'Stealth'}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn ghost icon-btn"
+              title="Keyboard Shortcuts (?)"
+              aria-label="Keyboard Shortcuts"
+              onClick={() => setShortcutsOpen(true)}
+            >
+              <HelpCircle size={16} />
+            </button>
+
             <button
               type="button"
               className="btn primary"
@@ -410,6 +527,10 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Page />
         </main>
       </div>
+
+      <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <PinLockModal open={locked} onUnlock={() => setLocked(false)} />
+      <ConfettiCanvas />
     </div>
   )
 }

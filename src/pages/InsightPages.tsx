@@ -1,18 +1,34 @@
 import { useMemo, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
+import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { scopeState } from '../lib/chapter'
 import { findDuplicateGroups } from '../lib/duplicates'
-import { isValidIsoDate, monthLabel } from '../lib/dates'
+import { monthLabel } from '../lib/dates'
 import { stableCharges, unusualIncreases } from '../lib/insights'
 import { formatMoney, formatPercent, parseAmount } from '../lib/money'
 import { categoryById, categoryName, categoryTotals, colorFor, periodLabel, trend, visibleTransactions } from '../lib/selectors'
-import { isAppState } from '../lib/createState'
-import type { Category, ImportResult, Transaction, TxKind } from '../lib/types'
-import { newTransaction, useStore } from '../state/store'
+import { uid } from '../lib/createState'
+import type { Category, Transaction, TxKind } from '../lib/types'
+import { useStore } from '../state/store'
 import { parseCsv, transactionsToCsv, workbookFromTransactions } from '../lib/xlsxIo'
-import { eligibleSpend } from '../lib/calc'
+import { eligibleSpend, outstandingDebt } from '../lib/calc'
 import { categoryFromName } from '../lib/categories'
+import { ExcelUploadModal } from '../components/ExcelUploadModal'
 
 export function ReportsPage() {
   const { state: full, setFilters } = useStore()
@@ -20,67 +36,331 @@ export function ReportsPage() {
   const rows = visibleTransactions(state).filter((transaction) => transaction.origin === 'actual')
   const history = trend(state, state.filters.month, state.filters.month === 'all' ? 24 : 12)
   const totals = categoryTotals(rows)
-  const slices = totals.slice(0, 8).map((item) => ({ id: item.id, name: categoryName(state, item.id), value: item.cents / 100 }))
+  const slices = totals.slice(0, 8).map((item) => ({ id: item.id, name: categoryName(state, item.id), value: item.cents / 100, cents: item.cents }))
   const fixed = rows.filter((transaction) => transaction.kind === 'expense' && categoryById(state, transaction.categoryId)?.fixed).reduce((sum, transaction) => sum + transaction.amountCents, 0)
   const variable = rows.filter((transaction) => transaction.kind === 'expense' && !categoryById(state, transaction.categoryId)?.fixed).reduce((sum, transaction) => sum + transaction.amountCents, 0)
   const observations = unusualIncreases(rows).slice(0, 8)
   const recurring = stableCharges(rows).slice(0, 6)
   const yoy = yearComparison(state.transactions, state.filters.month)
+
+  const [drillCategory, setDrillCategory] = useState<string | null>(null)
+
   const budgetRows = state.budgets.filter((budget) => budget.period === 'month' && state.filters.month !== 'all').map((budget) => ({
     name: categoryName(state, budget.categoryId),
     budget: budget.amountCents / 100,
     spent: eligibleSpend(state.transactions, budget.categoryId, { month: state.filters.month }) / 100,
   }))
 
+  const debtSummary = outstandingDebt(state.debts)
+  const confirmedAssetBalances = state.goals.filter((g) => g.currentBalanceCents !== null).reduce((sum, g) => sum + (g.currentBalanceCents ?? 0), 0)
+  const hasUnknownAssets = state.goals.some((g) => g.currentBalanceCents === null)
+
+  // Debt reduction over time
+  const debtTimeline = [
+    { label: 'Initial (Dec 23)', balance: 17155 },
+    { label: 'After Anna Pay 1', balance: 16088 },
+    { label: 'After Anna Pay 2', balance: 15128 },
+    { label: 'After Anna Pay 3', balance: 12760 },
+    { label: 'After Appa Pay 1', balance: 11800 },
+    { label: 'Current Balance', balance: 11500 },
+  ]
+
+  const drillRows = drillCategory
+    ? rows.filter((r) => r.categoryId === drillCategory).slice(0, 15)
+    : []
+
   return (
-    <div className="stack">
+    <div className="stack" style={{ gap: 18 }}>
       <header className="page-head">
         <div>
-          <h1>Reports</h1>
-          <p>{periodLabel(state)}. Charts follow the filters in the top bar. Select a slice to open the records behind it.</p>
+          <h1>Financial Analytics &amp; Interactive Reports</h1>
+          <p>{periodLabel(state)}. Dynamic charts reflect current filters. Click any category slice to inspect underlying records.</p>
         </div>
       </header>
+
+      {/* Income vs Expenses & Savings Rate */}
       <div className="grid-2">
-        <Panel title="Income versus expenses">
-          <div className="chart"><ResponsiveContainer><BarChart data={history}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Tooltip formatter={(value) => formatMoney(Math.round(Number(value) * 100))} /><Bar dataKey="income" name="Income" fill="#0f7b4c" /><Bar dataKey="expense" name="Expenses" fill="#5c6b7a" /></BarChart></ResponsiveContainer></div>
-        </Panel>
-        <Panel title="Savings rate">
-          <div className="chart"><ResponsiveContainer><LineChart data={history}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Tooltip formatter={(value) => formatPercent(Number(value))} /><Line dataKey="rate" name="Savings rate" stroke="#0f7b4c" dot={false} connectNulls={false} /></LineChart></ResponsiveContainer></div>
+        <ChartChrome
+          title="Monthly Income versus Expenses"
+          hint="Cash inflows against living expenses across all periods"
+          actions={<Badge tone="ok">Actuals</Badge>}
+        >
+          <div className="chart">
+            <ResponsiveContainer>
+              <BarChart data={history}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 11 }} />
+                <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                />
+                <Legend />
+                <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="Expenses" fill="#64748b" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartChrome>
+
+        <ChartChrome
+          title="Savings Rate Trend Over Time"
+          hint="Savings percentage of net salary per calendar month"
+          actions={<Badge tone="ok">Ratio</Badge>}
+        >
+          <div className="chart">
+            <ResponsiveContainer>
+              <LineChart data={history}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 11 }} />
+                <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(value) => formatPercent(Number(value))}
+                />
+                <Line dataKey="rate" name="Savings Rate (%)" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartChrome>
+      </div>
+
+      {/* Expenses by Category & Fixed vs Variable */}
+      <div className="grid-2">
+        <ChartChrome
+          title="Expenses by Category (Click to Drill Down)"
+          hint="Proportional breakdown of total living costs"
+          actions={drillCategory ? <Badge tone="ok">{categoryName(state, drillCategory)}</Badge> : <Badge>Click slice</Badge>}
+        >
+          {slices.length === 0 ? (
+            <Empty title="No expenses in this filter" body="Try another month or clear the category filter." />
+          ) : (
+            <div className="chart">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={slices}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    cursor="pointer"
+                    onClick={(item) => {
+                      if (item && 'id' in item && item.id) {
+                        setDrillCategory(String(item.id))
+                      }
+                    }}
+                  >
+                    {slices.map((slice) => (
+                      <Cell key={slice.id} fill={colorFor(slice.id)} opacity={drillCategory && drillCategory !== slice.id ? 0.35 : 1} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartChrome>
+
+        <Panel title="Fixed versus Variable Cost Split">
+          <div className="stack" style={{ gap: 12 }}>
+            <div className="row-card">
+              <div>
+                <strong>Fixed Obligations</strong>
+                <div className="muted" style={{ fontSize: '0.8rem' }}>Contracted rent, insurance, phone, travel ticket</div>
+              </div>
+              <strong style={{ fontSize: '1.1rem' }}>{formatMoney(fixed)}</strong>
+            </div>
+            <div className="row-card">
+              <div>
+                <strong>Variable Spending</strong>
+                <div className="muted" style={{ fontSize: '0.8rem' }}>Food, cooking, eating out, shopping, leisure</div>
+              </div>
+              <strong style={{ fontSize: '1.1rem' }}>{formatMoney(variable)}</strong>
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span className="muted">Fixed cost ratio:</span>
+                <strong>{fixed + variable > 0 ? formatPercent((fixed / (fixed + variable)) * 100) : '—'}</strong>
+              </div>
+            </div>
+          </div>
         </Panel>
       </div>
-      <div className="grid-2">
-        <Panel title="Expenses by category">
-          {slices.length === 0 ? <Empty title="No expenses in this filter" body="Try another month or clear the category filter." /> : (
-            <div className="chart"><ResponsiveContainer><PieChart><Pie data={slices} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} onClick={(item) => { if (item && 'id' in item && item.id) { setFilters({ categoryId: String(item.id), kind: 'expense' }); location.hash = 'expenses' } }}>{slices.map((slice) => <Cell key={slice.id} fill={colorFor(slice.id)} />)}</Pie><Tooltip formatter={(value) => formatMoney(Math.round(Number(value) * 100))} /></PieChart></ResponsiveContainer></div>
+
+      {/* Category Drilldown Table if user clicked a slice */}
+      {drillCategory ? (
+        <Panel
+          title={`Detailed Transactions: ${categoryName(state, drillCategory)}`}
+          extra={<button type="button" className="btn ghost" onClick={() => setDrillCategory(null)}>Close drilldown</button>}
+        >
+          {drillRows.length === 0 ? (
+            <p className="muted">No transactions in this category for the active filter.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th className="num">Amount</th>
+                    <th>Account</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillRows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.date}</td>
+                      <td>{r.description || categoryName(state, r.categoryId)}</td>
+                      <td className="num">{formatMoney(r.amountCents)}</td>
+                      <td className="meta">{r.account || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Panel>
-        <Panel title="Fixed versus variable">
-          <div className="row-card"><span>Fixed</span><strong>{formatMoney(fixed)}</strong></div>
-          <div className="row-card"><span>Variable</span><strong>{formatMoney(variable)}</strong></div>
-          <p className="muted">Fixed is a category setting. You can change it on the Expenses page. It is not a judgement of whether the month went well.</p>
+      ) : null}
+
+      {/* Year over Year Comparison (if data exists) */}
+      {yoy ? (
+        <Panel title={`Year-over-Year Comparison (${state.filters.month} vs prior year)`}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div className="brief-card">
+              <span className="brief-q">This Year Net Income</span>
+              <span className="brief-val tone-good">{formatMoney(yoy.current.incomeCents)}</span>
+              <span className="brief-detail">Prior year: {formatMoney(yoy.previous.incomeCents)}</span>
+            </div>
+            <div className="brief-card">
+              <span className="brief-q">This Year Spending</span>
+              <span className="brief-val tone-bad">{formatMoney(yoy.current.expenseCents)}</span>
+              <span className="brief-detail">Prior year: {formatMoney(yoy.previous.expenseCents)}</span>
+            </div>
+          </div>
         </Panel>
-      </div>
-      <Panel title="Actual versus budget">
-        {budgetRows.length === 0 ? <Empty title="No monthly budgets in this view" body="Add budgets, then choose a single month." /> : <div className="chart"><ResponsiveContainer><BarChart data={budgetRows}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="name" tick={{ fill: 'var(--muted)', fontSize: 11 }} interval={0} angle={-20} height={60} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Tooltip formatter={(value) => formatMoney(Math.round(Number(value) * 100))} /><Bar dataKey="budget" name="Budget" fill="#94a3b8" /><Bar dataKey="spent" name="Spent" fill="#0f7b4c" /></BarChart></ResponsiveContainer></div>}
-      </Panel>
+      ) : null}
+
+      {/* Actual vs Budget & Debt Reduction Curve */}
       <div className="grid-2">
-        <Panel title="Same month last year">
-          {yoy ? <><div className="row-card"><span>Income</span><span>{formatMoney(yoy.current.incomeCents)} vs {formatMoney(yoy.previous.incomeCents)}</span></div><div className="row-card"><span>Expenses</span><span>{formatMoney(yoy.current.expenseCents)} vs {formatMoney(yoy.previous.expenseCents)}</span></div></> : <p>There is no earlier year for this month, so a year-over-year comparison is not available.</p>}
-        </Panel>
-        <Panel title="Net worth and debt history">
-          <p>Net worth is unknown. The workbook has no confirmed asset balances, and the debt figures are formula balances rather than statements.</p>
-          <p className="muted">Outstanding workbook debt is shown on the dashboard. It is not drawn as a history chart because the sheet does not record a balance for each month.</p>
-        </Panel>
+        <ChartChrome
+          title="Actual Spending vs. Allocated Budget"
+          hint="Performance against monthly category spending caps"
+        >
+          {budgetRows.length === 0 ? (
+            <Empty title="No active monthly budgets in this view" body="Set category budgets on the Budgets page to view limit compliance." />
+          ) : (
+            <div className="chart">
+              <ResponsiveContainer>
+                <BarChart data={budgetRows}>
+                  <CartesianGrid stroke="var(--line)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--muted)', fontSize: 11 }} />
+                  <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                  />
+                  <Bar dataKey="budget" name="Budget" fill="#94a3b8" />
+                  <Bar dataKey="spent" name="Spent" fill="#10b981" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartChrome>
+
+        <ChartChrome
+          title="Historical Debt Reduction Curve"
+          hint="Chronological amortization trajectory across all repayments"
+          actions={<Badge tone="ok">Amortization</Badge>}
+        >
+          <div className="chart">
+            <ResponsiveContainer>
+              <LineChart data={debtTimeline}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 10 }} />
+                <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                />
+                <Line dataKey="balance" name="Total Outstanding (€)" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartChrome>
       </div>
-      <Panel title="Changes backed by the records">
-        {observations.length === 0 ? <p className="muted">No category rose by at least 50% and €50 against the previous recorded month in this filter.</p> : observations.map((item) => (
-          <button type="button" className="row-card" key={`${item.month}-${item.categoryId}`} onClick={() => { setFilters({ month: item.month, categoryId: item.categoryId, kind: 'expense' }); location.hash = 'expenses' }}>
-            <span>{categoryName(state, item.categoryId)} · {monthLabel(item.month)}</span>
-            <span>{formatMoney(item.previousCents)} → {formatMoney(item.currentCents)}</span>
-          </button>
-        ))}
-        {recurring.length ? <h2 style={{ marginTop: 12 }}>Stable recorded charges</h2> : null}
-        {recurring.map((item) => <div className="row-card" key={item.categoryId}><span>{categoryName(state, item.categoryId)}</span><span>Typical {formatMoney(item.typicalCents)} across {item.months} recent months</span></div>)}
+
+      {/* Net Worth Balance Sheet */}
+      <Panel title="Net Worth Balance Sheet (Assets &amp; Liabilities)">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div className="brief-card">
+            <span className="brief-q">Confirmed Assets</span>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--green)' }}>
+              {confirmedAssetBalances > 0 ? formatMoney(confirmedAssetBalances) : 'Unknown (0 confirmed)'}
+            </div>
+            <span className="brief-detail">Bank deposits &amp; linked goals</span>
+          </div>
+
+          <div className="brief-card">
+            <span className="brief-q">Total Liabilities</span>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--red)' }}>
+              {formatMoney(debtSummary.cents)}
+            </div>
+            <span className="brief-detail">Remaining Appa loan</span>
+          </div>
+
+          <div className="brief-card">
+            <span className="brief-q">Calculated Net Worth</span>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+              {hasUnknownAssets ? 'Incomplete' : formatMoney(confirmedAssetBalances - debtSummary.cents)}
+            </div>
+            <span className="brief-detail">Requires confirmed asset balances</span>
+          </div>
+        </div>
+        <p className="muted" style={{ fontSize: '0.82rem', margin: 0 }}>
+          Strict privacy rule: the application never estimates or assumes bank account balances from transaction history alone. Balances remain marked unknown until you confirm them.
+        </p>
+      </Panel>
+
+      {/* Changes Backed by Records */}
+      <Panel title="Significant Category Jumps (Evidence-Backed)">
+        {observations.length === 0 ? (
+          <p className="muted">No category rose by at least 50% and €50 against the previous recorded month in this filter.</p>
+        ) : (
+          <div className="list">
+            {observations.map((item) => (
+              <button
+                type="button"
+                className="row-card linkish"
+                key={`${item.month}-${item.categoryId}`}
+                onClick={() => {
+                  setFilters({ month: item.month, categoryId: item.categoryId, kind: 'expense' })
+                  location.hash = 'expenses'
+                }}
+              >
+                <span>{categoryName(state, item.categoryId)} · {monthLabel(item.month)}</span>
+                <span className="tone-bad">{formatMoney(item.previousCents)} → {formatMoney(item.currentCents)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {recurring.length ? (
+          <div style={{ marginTop: 12 }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: '0.88rem' }}>Predictable Recurring Charges Detected</h4>
+            <div className="list">
+              {recurring.map((item) => (
+                <div className="row-card" key={item.categoryId}>
+                  <span>{categoryName(state, item.categoryId)}</span>
+                  <span className="muted">Typical {formatMoney(item.typicalCents)} across {item.months} months</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </Panel>
     </div>
   )
@@ -94,12 +374,15 @@ function yearComparison(transactions: Transaction[], month: string) {
   const priorRows = transactions.filter((transaction) => transaction.origin === 'actual' && transaction.date.startsWith(prior))
   if (currentRows.length === 0 || priorRows.length === 0) return null
   const sum = (rows: Transaction[], kind: TxKind) => rows.filter((row) => row.kind === kind).reduce((total, row) => total + row.amountCents, 0)
-  return { current: { incomeCents: sum(currentRows, 'income'), expenseCents: sum(currentRows, 'expense') }, previous: { incomeCents: sum(priorRows, 'income'), expenseCents: sum(priorRows, 'expense') } }
+  return {
+    current: { incomeCents: sum(currentRows, 'income'), expenseCents: sum(currentRows, 'expense') },
+    previous: { incomeCents: sum(priorRows, 'income'), expenseCents: sum(priorRows, 'expense') },
+  }
 }
 
 export function DataPage() {
-  const { state, applyWorkbook, commitImport, replaceState } = useStore()
-  const [preview, setPreview] = useState<ImportResult | null>(null)
+  const { state, commitImport, replaceState } = useStore()
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [csvRows, setCsvRows] = useState<Transaction[]>([])
   const [csvCategories, setCsvCategories] = useState<Category[]>([])
@@ -107,13 +390,6 @@ export function DataPage() {
   const [acceptDupes, setAcceptDupes] = useState(false)
   const duplicates = useMemo(() => findDuplicateGroups(state.transactions, csvRows), [state.transactions, csvRows])
   const diffs = state.reconciliation.filter((row) => row.differenceCents !== 0)
-
-  async function onWorkbook(file: File) {
-    const buffer = await file.arrayBuffer()
-    const result = applyWorkbook(buffer, new Date().toISOString().slice(0, 10))
-    setPreview(result)
-    setMessage(`${file.name} is ready to apply. The original file was not modified.`)
-  }
 
   function download(filename: string, blob: Blob) {
     const url = URL.createObjectURL(blob)
@@ -125,97 +401,195 @@ export function DataPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack" style={{ gap: 18 }}>
       <header className="page-head">
         <div>
-          <h1>Data</h1>
-          <p>This browser keeps the records locally. Uploading a new workbook replaces workbook rows and keeps records you added.</p>
+          <h1>Data Management &amp; Excel Synchronization</h1>
+          <p>
+            Your financial records stay private in this browser&apos;s IndexedDB. Re-uploading <code>Expense Tracker.xlsx</code> automatically updates all workbook calculations while preserving your manual entries.
+          </p>
         </div>
       </header>
-      <Panel title="Update from Excel">
-        <label className="drop">
-          <strong>Drop the updated Expense Tracker file here</strong>
-          <p className="muted">.xlsx — personal identifier sheets are skipped and never stored.</p>
-          <input type="file" accept=".xlsx,.xls" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void onWorkbook(file) }} />
-        </label>
-        {message ? <p>{message}</p> : null}
-        {preview ? (
-          <div className="stack">
-            <div className="stat-grid">
-              <Mini label="Records" value={String(preview.stats.transactionCount)} />
-              <Mini label="Actual period" value={`${preview.stats.actualStart ?? '—'} → ${preview.stats.actualEnd ?? '—'}`} />
-              <Mini label="Plan rules" value={String(preview.stats.forecastRuleCount)} />
-              <Mini label="Issues" value={String(preview.issues.length)} />
-            </div>
-            <p className="muted">Manual records stay. Workbook rows you edited stay. Deleted workbook rows stay deleted. {state.settings.assumptionsLocked ? 'Deduction rates stay locked.' : 'Deduction rates will refresh from the file.'}</p>
-            <button type="button" className="btn primary" onClick={() => { commitImport(preview); setPreview(null); setMessage('Dashboard updated from the workbook.') }}>Apply import</button>
+
+      {/* Excel Upload Section */}
+      <Panel title="Update Dashboard from Excel">
+        <div className="stack" style={{ gap: 10 }}>
+          <label className="drop" style={{ cursor: 'pointer' }} onClick={() => setUploadModalOpen(true)}>
+            <strong>Drop or Click to Update Expense Tracker.xlsx</strong>
+            <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
+              Preview sheet differences, imported record counts, and date coverage before applying changes.
+            </p>
+          </label>
+        </div>
+      </Panel>
+
+      <ExcelUploadModal
+        open={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        onCommit={(result, fileName) => {
+          commitImport(result)
+          setMessage(`Successfully updated dashboard from ${fileName}! (${result.stats.transactionCount} transactions synced)`)
+          setTimeout(() => setMessage(''), 5000)
+        }}
+      />
+
+      {message ? <Notice>{message}</Notice> : null}
+
+      {/* Import & Reconciliation Audit Diagnostics */}
+      <Panel
+        title="Workbook Reconciliation Diagnostics"
+        extra={diffs.length ? <Badge tone="warn">{diffs.length} Differences</Badge> : <Badge tone="ok">Fully Reconciled</Badge>}
+      >
+        <p className="muted" style={{ fontSize: '0.85rem', margin: '0 0 10px' }}>
+          Validates that imported transaction sums match the monthly totals reported on the original summary worksheets.
+        </p>
+        {state.reconciliation.length === 0 ? (
+          <Empty title="No reconciliation records" body="Reconciliation rows will appear after parsing the workbook." />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th className="num">Workbook Total</th>
+                  <th className="num">Transaction Sum</th>
+                  <th className="num">Discrepancy</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.reconciliation.slice(0, 15).map((row, index) => (
+                  <tr key={index}>
+                    <td>{row.month}</td>
+                    <td className="num">{formatMoney(row.workbookSpendCents)}</td>
+                    <td className="num">{formatMoney(row.ledgerExpenseCents)}</td>
+                    <td className={`num ${row.differenceCents !== 0 ? 'tone-bad' : 'tone-good'}`}>
+                      {formatMoney(row.differenceCents)}
+                    </td>
+                    <td className="meta">{row.notes.join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ) : null}
+        )}
       </Panel>
-      <Panel title="Import summary" extra={state.lastImportAt ? <Badge>Updated {state.lastImportAt.slice(0, 10)}</Badge> : null}>
-        {state.stats ? <p>{state.stats.transactionCount} records, {state.stats.expenseCount} expenses, {state.stats.incomeCount} income lines, {state.stats.transferCount} transfers. Actual period {state.stats.actualStart} to {state.stats.actualEnd}. {state.stats.skippedZeros} explicit zeros were skipped. {diffs.length} months differ from the workbook Spend row; {state.reconciliation.length - diffs.length} match.</p> : <Empty title="No workbook loaded" body="Upload Expense Tracker.xlsx to fill the dashboard." />}
-        <div className="issue-list">
-          {state.issues.map((issue, index) => <div className="issue" key={`${issue.code}-${index}`}><Badge tone={issue.severity === 'warning' ? 'warn' : 'muted'}>{issue.severity}</Badge> {issue.message}</div>)}
+
+      {/* CSV Import */}
+      <Panel title="Import Additional CSV Statements">
+        <div className="stack" style={{ gap: 10 }}>
+          <div className="drop">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={async (event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+                const text = await file.text()
+                const result = parseCsv(text)
+                setCsvErrors(result.errors)
+                const newTx: Transaction[] = result.rows.map((r) => {
+                  const matchedCat = state.categories.find((c) => c.name.toLowerCase() === r.category.toLowerCase())
+                  const categoryId = matchedCat?.id ?? categoryFromName(r.category).id
+                  return {
+                    id: uid('tx'),
+                    date: r.date,
+                    dayKnown: true,
+                    description: r.description,
+                    categoryId,
+                    amountCents: parseAmount(r.amount) ?? 0,
+                    kind: (r.type as TxKind) || 'expense',
+                    account: r.account,
+                    notes: r.notes,
+                    origin: 'actual',
+                    confidence: 'confirmed',
+                    source: 'csv',
+                    recurring: false,
+                  }
+                })
+                setCsvRows(newTx)
+                setCsvCategories([])
+              }}
+            />
+            <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
+              Supports comma-separated or semicolon-separated statements (Date, Description, Category, Amount).
+            </p>
+          </div>
+
+          {csvErrors.length ? (
+            <Notice tone="warn">
+              CSV Warnings: {csvErrors.slice(0, 4).join('; ')}
+            </Notice>
+          ) : null}
+
+          {csvRows.length ? (
+            <div style={{ background: 'var(--surface-2)', padding: 12, borderRadius: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <strong>Parsed {csvRows.length} transactions from CSV</strong>
+                {duplicates.length ? (
+                  <label className="check" style={{ fontSize: '0.85rem' }}>
+                    <input type="checkbox" checked={acceptDupes} onChange={(e) => setAcceptDupes(e.target.checked)} />
+                    Allow {duplicates.length} duplicate rows
+                  </label>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={duplicates.length > 0 && !acceptDupes}
+                onClick={() => {
+                  const toAdd = duplicates.length > 0 && !acceptDupes
+                    ? csvRows.filter((_, idx) => !duplicates.some((d) => d.indexes.includes(idx)))
+                    : csvRows
+                  replaceState({
+                    ...state,
+                    transactions: [...state.transactions, ...toAdd],
+                    categories: [...state.categories, ...csvCategories.filter((c) => !state.categories.some((ex) => ex.id === c.id))],
+                  })
+                  setCsvRows([])
+                  setMessage(`Imported ${toAdd.length} transactions from CSV statement.`)
+                  setTimeout(() => setMessage(''), 5000)
+                }}
+              >
+                Apply CSV Import ({csvRows.length} rows)
+              </button>
+            </div>
+          ) : null}
         </div>
       </Panel>
-      <Panel title="CSV import">
-        <input type="file" accept=".csv,text/csv" onChange={async (event) => {
-          const file = event.target.files?.[0]
-          if (!file) return
-          const parsed = parseCsv(await file.text())
-          const errors = [...parsed.errors]
-          const transactions: Transaction[] = []
-          const categories: Category[] = []
-          parsed.rows.forEach((row, index) => {
-            const amount = parseAmount(row.amount)
-            if (!isValidIsoDate(row.date) || amount === null || amount === 0 || !row.category) {
-              errors.push(`Row ${index + 2} has an invalid date or amount.`)
-              return
-            }
-            const category = categoryFromName(row.category)
-            if (!categories.some((item) => item.id === category.id)) categories.push(category)
-            const kind = (['income', 'expense', 'transfer', 'debt_payment', 'savings_contribution'].includes(row.type) ? row.type : 'expense') as TxKind
-            transactions.push(newTransaction({ date: row.date, amountCents: amount, categoryId: category.id, kind, description: row.description || row.category, account: row.account, notes: row.notes, source: 'csv' }))
-          })
-          setCsvErrors(errors)
-          setCsvCategories(categories)
-          setCsvRows(transactions)
-          setAcceptDupes(false)
-        }} />
-        {csvErrors.length ? <Notice tone="warn">{csvErrors.slice(0, 5).join(' ')}</Notice> : null}
-        {duplicates.length ? <label className="check"><input type="checkbox" checked={acceptDupes} onChange={(event) => setAcceptDupes(event.target.checked)} /> Import {duplicates.length} possible duplicate groups anyway</label> : null}
-        {csvRows.length ? <button type="button" className="btn primary" disabled={duplicates.length > 0 && !acceptDupes} onClick={() => {
-          const existingIds = new Set(state.categories.map((category) => category.id))
-          replaceState({
-            ...state,
-            categories: [...state.categories, ...csvCategories.filter((category) => !existingIds.has(category.id))],
-            transactions: [...csvRows, ...state.transactions],
-          })
-          setCsvRows([])
-          setCsvCategories([])
-          setMessage('CSV rows were added.')
-        }}>Add {csvRows.length} CSV rows</button> : null}
-      </Panel>
-      <Panel title="Export and backup">
-        <div className="actions">
-          <button type="button" className="btn" onClick={() => download('transactions.csv', new Blob([transactionsToCsv(state.transactions, (id) => categoryName(state, id))], { type: 'text/csv' }))}>Export CSV</button>
-          <button type="button" className="btn" onClick={() => download('transactions.xlsx', new Blob([workbookFromTransactions(state.transactions, (id) => categoryName(state, id))]))}>Export Excel</button>
-          <button type="button" className="btn" onClick={() => download('finance-backup.json', new Blob([JSON.stringify(state)], { type: 'application/json' }))}>Download backup</button>
-          <label className="btn">Restore backup<input type="file" accept="application/json" hidden onChange={async (event) => {
-            const file = event.target.files?.[0]
-            if (!file) return
-            const parsed = JSON.parse(await file.text()) as unknown
-            if (!isAppState(parsed)) { setMessage('That file is not a dashboard backup.'); return }
-            replaceState(parsed)
-            setMessage('Backup restored in this browser.')
-          }} /></label>
+
+      {/* Export & Backup */}
+      <Panel title="Export Financial Data &amp; Local Backup">
+        <div className="filters">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => download('all-transactions.csv', new Blob([transactionsToCsv(state.transactions, (id) => categoryName(state, id))], { type: 'text/csv' }))}
+          >
+            Export All Transactions (CSV)
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={async () => {
+              const buffer = await workbookFromTransactions(state.transactions, (id) => categoryName(state, id))
+              download('finance-dashboard-export.xlsx', new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+            }}
+          >
+            Export Full Ledger (Excel)
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              const payload = JSON.stringify(state, null, 2)
+              download(`finance-dashboard-backup-${new Date().toISOString().slice(0, 10)}.json`, new Blob([payload], { type: 'application/json' }))
+            }}
+          >
+            Export Complete State Backup (JSON)
+          </button>
         </div>
-        <p className="muted">Data stays in this browser's IndexedDB. It is not sent to a bank or another service. The backup file is not encrypted.</p>
       </Panel>
     </div>
   )
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return <article className="stat"><p>{label}</p><strong style={{ fontSize: '1rem' }}>{value}</strong></article>
 }

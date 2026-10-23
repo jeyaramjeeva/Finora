@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   budgetRemaining,
+  budgetStatus,
   budgetUtilisation,
+  computeExecutiveBrief,
   debtWorkbookBalance,
   filterTransactions,
   monthFigures,
@@ -11,6 +13,7 @@ import {
   projectSingleDebt,
   repaymentScenario,
   totalsByCategory,
+  eligibleSpend,
 } from './calc'
 import { findDuplicateGroups } from './duplicates'
 import { parseAmount, toCents } from './money'
@@ -65,15 +68,27 @@ describe('money and month figures', () => {
     expect(budgetRemaining(10000, 7500)).toBe(2500)
     expect(budgetUtilisation(10000, 7500)).toBe(75)
     expect(budgetUtilisation(0, 100)).toBeNull()
+    expect(budgetStatus(70)).toBe('ok')
+    expect(budgetStatus(75)).toBe('watch')
+    expect(budgetStatus(89)).toBe('watch')
+    expect(budgetStatus(90)).toBe('high')
+    expect(budgetStatus(95)).toBe('high')
+    expect(budgetStatus(100)).toBe('over')
+    expect(budgetStatus(120)).toBe('over')
+
     const rows = [
       tx({ date: '2026-02-01', kind: 'expense', amountCents: 1000, categoryId: 'rent' }),
       tx({ date: '2026-03-01', kind: 'expense', amountCents: 2000, categoryId: 'food' }),
       tx({ date: '2026-02-01', kind: 'expense', amountCents: 3000, categoryId: 'rent', origin: 'forecast' }),
     ]
     expect(filterTransactions(rows, { month: '2026-02', origin: 'actual' })).toHaveLength(1)
+    expect(filterTransactions(rows, { from: '2026-02-15', to: '2026-03-15' })).toHaveLength(1)
     expect(totalsByCategory(filterTransactions(rows, { origin: 'actual' })).get('rent')).toBe(1000)
     expect(projectMonthEnd(10000, '2026-10', new Date(2026, 9, 10))).toBe(31000)
     expect(projectMonthEnd(0, '2026-10', new Date(2026, 9, 10))).toBeNull()
+    // For past completed month
+    expect(projectMonthEnd(12000, '2026-01', new Date(2026, 9, 10))).toBe(12000)
+    expect(eligibleSpend(rows, 'rent', { year: 2026 })).toBe(1000)
   })
 })
 
@@ -103,6 +118,39 @@ describe('debt', () => {
     expect(projectSingleDebt(100000, 6, 5000).ok).toBe(true)
     expect(repaymentScenario([{ ...debt, components: [{ id: 'a', name: 'Loan', amountCents: 1150000 }], payments: [], interestRateAnnual: null, minimumPaymentCents: null }], 'avalanche', 0, '2026-10').ok).toBe(false)
     expect(repaymentScenario([{ ...debt, components: [{ id: 'a', name: 'Loan', amountCents: 100000 }], payments: [], interestRateAnnual: 5, minimumPaymentCents: 5000 }], 'snowball', 1000, '2026-10').ok).toBe(true)
+  })
+
+  it('computes executive brief answering the 8 core questions', () => {
+    const brief = computeExecutiveBrief({
+      month: '2026-02',
+      incomeCents: 130100,
+      expenseCents: 119090,
+      savingsCents: 11010,
+      savingsRate: 8.46,
+      debtPaymentCents: 0,
+      transferCents: 10000,
+      savingsContributionCents: 0,
+      priorIncomeCents: 130100,
+      priorExpenseCents: 126645,
+      topCategories: [
+        { name: 'Rent', cents: 40600 },
+        { name: 'Food', cents: 35666 },
+        { name: 'Insurance', cents: 23624 },
+      ],
+      budgetSummary: { remaining: null, over: false, count: 0 },
+      debtCents: 1150000,
+      trailingExpenseAvgCents: 126645,
+      isEmployed: false,
+    })
+    expect(brief.earnedCents).toBe(130100)
+    expect(brief.spentCents).toBe(119090)
+    expect(brief.savedCents).toBe(11010)
+    expect(brief.availableCashCents).toBe(11010)
+    expect(brief.topCategories).toHaveLength(3)
+    expect(brief.topCategories[0].name).toBe('Rent')
+    expect(brief.totalDebtCents).toBe(1150000)
+    expect(brief.realisticSavings6mCents).toBe(11010 * 6)
+    expect(brief.realisticSavings12mCents).toBe(11010 * 12)
   })
 })
 

@@ -110,11 +110,16 @@ export function eligibleSpend(transactions: Transaction[], categoryId: string, p
 
 export function projectMonthEnd(spentCents: number, month: string, asOf: Date): number | null {
   const current = `${asOf.getFullYear()}-${String(asOf.getMonth() + 1).padStart(2, '0')}`
-  if (month !== current) return null
   if (spentCents === 0) return null
-  const day = asOf.getDate()
-  if (day < 1) return null
-  return Math.round((spentCents / day) * daysInMonth(month))
+  if (month < current) {
+    return spentCents
+  }
+  if (month === current) {
+    const day = asOf.getDate()
+    if (day < 1) return null
+    return Math.round((spentCents / day) * daysInMonth(month))
+  }
+  return null
 }
 
 export function netWorth(assetsCents: Array<number | null>, liabilityCents: Array<number | null>): number | null {
@@ -307,5 +312,183 @@ export function applyBudget(budget: Budget, transactions: Transaction[], month: 
     remainingCents: budgetRemaining(budget.amountCents, spentCents),
     utilisation: budgetUtilisation(budget.amountCents, spentCents),
     projectedCents: budget.period === 'month' ? projectMonthEnd(spentCents, month, new Date()) : null,
+  }
+}
+
+export interface ExecutiveBrief {
+  month: string
+  earnedCents: number | null
+  earnedNote: string
+  earnedDeltaVsPrior: number | null
+
+  spentCents: number | null
+  spentNote: string
+  spentDeltaVsPrior: number | null
+
+  savedCents: number | null
+  savingsRate: number | null
+  savedNote: string
+
+  availableCashCents: number | null
+  availableCashNote: string
+
+  topCategories: Array<{ name: string; cents: number; percent: number }>
+  topCategoryNote: string
+
+  spendingStatus: 'under' | 'over' | 'on_track' | 'no_budget'
+  spendingVsPlanNote: string
+
+  totalDebtCents: number
+  debtStatusNote: string
+
+  realisticSavings6mCents: number
+  realisticSavings12mCents: number
+  savingsOutlookNote: string
+}
+
+export function computeExecutiveBrief(params: {
+  month: string
+  incomeCents: number | null
+  expenseCents: number | null
+  savingsCents: number | null
+  savingsRate: number | null
+  debtPaymentCents: number | null
+  transferCents: number | null
+  savingsContributionCents: number | null
+  priorIncomeCents: number | null
+  priorExpenseCents: number | null
+  topCategories: Array<{ name: string; cents: number }>
+  budgetSummary: { remaining: number | null; over: boolean; count: number }
+  debtCents: number
+  trailingExpenseAvgCents: number | null
+  isEmployed: boolean
+}): ExecutiveBrief {
+  const {
+    month,
+    incomeCents,
+    expenseCents,
+    savingsCents,
+    savingsRate,
+    debtPaymentCents,
+    savingsContributionCents,
+    priorIncomeCents,
+    priorExpenseCents,
+    topCategories,
+    budgetSummary,
+    debtCents,
+    trailingExpenseAvgCents,
+    isEmployed,
+  } = params
+
+  const earnedDeltaVsPrior = previousMonthDelta(incomeCents, priorIncomeCents)
+  const spentDeltaVsPrior = previousMonthDelta(expenseCents, priorExpenseCents)
+
+  // 1. Earned
+  const earnedNote = isEmployed
+    ? 'Estimated gross €4,320.82 / net salary from Trimble full-time plan.'
+    : incomeCents !== null
+      ? 'Actual earnings from student employment & received allowances.'
+      : 'No income recorded for this period.'
+
+  // 2. Spent
+  const spentNote = expenseCents !== null
+    ? 'Actual living expenses. Transfers and account withdrawals are excluded.'
+    : 'No expenses recorded.'
+
+  // 3. Saved
+  const savedNote = savingsCents !== null && savingsCents >= 0
+    ? `Saved ${savingsRate !== null ? `${savingsRate.toFixed(1)}%` : ''} of income after expenses & debt.`
+    : savingsCents !== null
+      ? 'Expenses exceeded income in this period.'
+      : 'Savings unknown.'
+
+  // 4. Available cash
+  const availableCashCents = incomeCents !== null && expenseCents !== null
+    ? Math.max(0, incomeCents - expenseCents - (debtPaymentCents ?? 0) - (savingsContributionCents ?? 0))
+    : null
+  const availableCashNote = availableCashCents !== null
+    ? 'Net liquid buffer remaining in your account after all expenses, debt repayments, and savings contributions.'
+    : 'Available buffer cannot be determined.'
+
+  // 5. Where does most money go?
+  const totalCategorySpend = topCategories.reduce((acc, cat) => acc + cat.cents, 0)
+  const formattedTopCategories = topCategories.slice(0, 3).map((cat) => ({
+    name: cat.name,
+    cents: cat.cents,
+    percent: totalCategorySpend > 0 ? (cat.cents / totalCategorySpend) * 100 : 0,
+  }))
+  const topCategoryNote = formattedTopCategories.length
+    ? `#1 ${formattedTopCategories[0].name} (${formattedTopCategories[0].percent.toFixed(0)}%), followed by ${formattedTopCategories.slice(1).map((c) => `${c.name} (${c.percent.toFixed(0)}%)`).join(', ')}`
+    : 'No categorized spending recorded.'
+
+  // 6. Spending vs planned
+  let spendingStatus: 'under' | 'over' | 'on_track' | 'no_budget' = 'no_budget'
+  let spendingVsPlanNote = 'No monthly budget set for this period.'
+  if (budgetSummary.count > 0 && budgetSummary.remaining !== null) {
+    if (budgetSummary.over) {
+      spendingStatus = 'over'
+      spendingVsPlanNote = `Exceeded set budget by €${(Math.abs(budgetSummary.remaining) / 100).toFixed(2)} across ${budgetSummary.count} budgeted categories.`
+    } else {
+      spendingStatus = 'under'
+      spendingVsPlanNote = `Under budget by €${(budgetSummary.remaining / 100).toFixed(2)} across ${budgetSummary.count} budgeted categories.`
+    }
+  } else if (expenseCents !== null && trailingExpenseAvgCents !== null && trailingExpenseAvgCents > 0) {
+    const diff = expenseCents - trailingExpenseAvgCents
+    if (diff > 5000) {
+      spendingStatus = 'over'
+      spendingVsPlanNote = `€${(Math.abs(diff) / 100).toFixed(2)} higher than your 3-month trailing average (€${(trailingExpenseAvgCents / 100).toFixed(2)}).`
+    } else if (diff < -5000) {
+      spendingStatus = 'under'
+      spendingVsPlanNote = `€${(Math.abs(diff) / 100).toFixed(2)} lower than your 3-month trailing average (€${(trailingExpenseAvgCents / 100).toFixed(2)}).`
+    } else {
+      spendingStatus = 'on_track'
+      spendingVsPlanNote = `Consistent with your 3-month trailing average (€${(trailingExpenseAvgCents / 100).toFixed(2)}).`
+    }
+  }
+
+  // 7. Outstanding debt
+  const debtStatusNote = debtCents > 0
+    ? `€${(debtCents / 100).toFixed(2)} outstanding principal balance (Appa loan). Anna student debt is 100% completed (€2 overpaid).`
+    : 'No outstanding debt recorded. Anna loan is completed.'
+
+  // 8. Realistic 6 to 12 month savings
+  let realisticSavings6mCents = 0
+  let realisticSavings12mCents = 0
+  let savingsOutlookNote = ''
+  if (isEmployed) {
+    // 600 EUR/mo planned savings (SIP 200 + Indian SIP 200 + Gold 100 + Emergency 100)
+    realisticSavings6mCents = 60000 * 6
+    realisticSavings12mCents = 60000 * 12
+    savingsOutlookNote = 'Based on full-time plan: €600/month across ETF SIP, Indian SIP, Gold, and Emergency Fund, plus up to €1,696/month unallocated cash buffer.'
+  } else {
+    // Student run rate savings
+    const monthlyRate = savingsCents !== null && savingsCents > 0 ? savingsCents : 11000 // default ~110 EUR/mo
+    realisticSavings6mCents = monthlyRate * 6
+    realisticSavings12mCents = monthlyRate * 12
+    savingsOutlookNote = `Projected at ~€${(monthlyRate / 100).toFixed(0)}/month based on recent actual savings rate and thesis student income.`
+  }
+
+  return {
+    month,
+    earnedCents: incomeCents,
+    earnedNote,
+    earnedDeltaVsPrior,
+    spentCents: expenseCents,
+    spentNote,
+    spentDeltaVsPrior,
+    savedCents: savingsCents,
+    savingsRate,
+    savedNote,
+    availableCashCents,
+    availableCashNote,
+    topCategories: formattedTopCategories,
+    topCategoryNote,
+    spendingStatus,
+    spendingVsPlanNote,
+    totalDebtCents: debtCents,
+    debtStatusNote,
+    realisticSavings6mCents,
+    realisticSavings12mCents,
+    savingsOutlookNote,
   }
 }

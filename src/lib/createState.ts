@@ -60,6 +60,10 @@ export function createState(result: ImportResult, previous?: AppState): AppState
         manualRunRateExpenseCents: previous.assumptions.manualRunRateExpenseCents,
       }
 
+  const actualMonths = transactions.filter((t) => t.origin === 'actual').map((t) => t.date.slice(0, 7))
+  const latestMonth = latestActualMonth(transactions)
+  const currentMonthValid = previous.filters.month === 'all' || actualMonths.includes(previous.filters.month)
+
   return {
     ...previous,
     transactions,
@@ -75,6 +79,10 @@ export function createState(result: ImportResult, previous?: AppState): AppState
     reconciliation: result.reconciliation,
     stats: result.stats,
     lastImportAt: new Date().toISOString(),
+    filters: {
+      ...previous.filters,
+      month: currentMonthValid ? previous.filters.month : latestMonth,
+    },
   }
 }
 

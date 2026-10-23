@@ -1,15 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Chip, KpiButton, PillTabs, SpendStack } from '../components/interactive'
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Wallet,
+  Receipt,
+  TrendingUp,
+  Percent,
+  Banknote,
+  Target,
+  Landmark,
+  ShieldCheck,
+  CalendarClock,
+} from 'lucide-react'
+import { Chip, SpendStack } from '../components/interactive'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
+import { ExecutiveBriefCard } from '../components/ExecutiveBriefCard'
+import { KpiCard } from '../components/KpiCard'
+import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { activeChapter, employedMonths, planCategoryTotals, scopeState } from '../lib/chapter'
-import { shortMonth } from '../lib/dates'
+import { addMonths, shortMonth } from '../lib/dates'
 import { unusualIncreases } from '../lib/insights'
-import { formatMoney, formatPercent } from '../lib/money'
-import { budgetSummary, categoryName, categoryTotals, colorFor, compare, debtSummary, figuresForMonths, knownSavingsBalance, periodLabel, previousFigures, trend } from '../lib/selectors'
+import { formatMoney } from '../lib/money'
+import { computeExecutiveBrief } from '../lib/calc'
+import { budgetSummary, categoryName, categoryTotals, colorFor, compare, debtSummary, figuresForMonths, knownSavingsBalance, previousFigures, trend } from '../lib/selectors'
 import { useStore } from '../state/store'
 
 type Focus = 'all' | 'income' | 'expense'
+type ChartMode = 'bar' | 'donut'
 type SavedView = { id: string; name: string; months: string[]; focus: Focus; categoryId: string }
 
 const VIEW_KEY = 'finance-dashboard-views'
@@ -24,12 +40,13 @@ function loadViews(): SavedView[] {
 }
 
 export function Dashboard() {
-  const { state: full, setFilters } = useStore()
+  const { state: full } = useStore()
   const state = scopeState(full)
   const employed = activeChapter(state) === 'employed'
   const actualMonths = useMemo(() => employed ? employedMonths(state) : [...new Set(state.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort(), [employed, state])
   const [months, setMonths] = useState<string[]>(() => (state.filters.month === 'all' ? [] : [state.filters.month]))
   const [focus, setFocus] = useState<Focus>('all')
+  const [chartMode, setChartMode] = useState<ChartMode>('bar')
   const [categoryId, setCategoryId] = useState<string | null>(state.filters.categoryId === 'all' ? null : state.filters.categoryId)
   const [views, setViews] = useState<SavedView[]>(loadViews)
   const [viewName, setViewName] = useState('')
@@ -62,167 +79,384 @@ export function Dashboard() {
   const drill = state.transactions
     .filter((transaction) => transaction.origin === 'actual' && transaction.kind === 'expense' && categoryId && transaction.categoryId === categoryId && activeMonths.includes(transaction.date.slice(0, 7)))
     .sort((a, b) => b.date.localeCompare(a.date) || b.amountCents - a.amountCents)
-    .slice(0, 12)
-  const sparks = {
-    income: history.map((row) => row.income ?? 0),
-    expense: history.map((row) => row.expense ?? 0),
-    savings: history.map((row) => row.savings ?? 0),
-  }
+    .slice(0, 20)
 
-  function applyMonths(next: string[]) {
-    const month = next.length === 1 ? next[0] : 'all'
-    writtenMonth.current = month
-    setMonths(next)
-    setFilters({ month })
-  }
+  const trailingExpenseAvgCents = useMemo(() => {
+    if (activeMonths.length === 0) return null
+    const currentM = activeMonths[0]
+    const prior3 = [addMonths(currentM, -1), addMonths(currentM, -2), addMonths(currentM, -3)]
+    const priorExpenses = prior3.map((m) => {
+      const f = figuresForMonths(state, [m])
+      return f.expenseCents
+    }).filter((c): c is number => c !== null)
+    if (priorExpenses.length === 0) return null
+    return Math.round(priorExpenses.reduce((a, b) => a + b, 0) / priorExpenses.length)
+  }, [activeMonths, state])
 
-  function toggleMonth(month: string) {
-    applyMonths(months.includes(month) ? months.filter((item) => item !== month) : [...months, month])
-  }
+  const brief = useMemo(() => {
+    const monthName = months.length === 1 ? months[0] : months.length > 1 ? `${months.length} months selected` : (employed ? 'Full-Time Plan' : 'All Recorded Months')
+    return computeExecutiveBrief({
+      month: monthName,
+      incomeCents: figures.incomeCents,
+      expenseCents: figures.expenseCents,
+      savingsCents: figures.savingsCents,
+      savingsRate: figures.savingsRate,
+      debtPaymentCents: figures.debtPaymentCents,
+      transferCents: figures.transferCents,
+      savingsContributionCents: figures.savingsContributionCents,
+      priorIncomeCents: previous?.incomeCents ?? null,
+      priorExpenseCents: previous?.expenseCents ?? null,
+      topCategories: slices.map((s) => ({ name: s.name, cents: s.cents })),
+      budgetSummary: budgets,
+      debtCents: debt.cents,
+      trailingExpenseAvgCents,
+      isEmployed: employed,
+    })
+  }, [months, employed, figures, previous, slices, budgets, debt.cents, trailingExpenseAvgCents])
 
+  const sparks = useMemo(() => {
+    const recent = history.slice(-6)
+    return {
+      income: recent.map((r) => (r.income ?? 0) / 100),
+      expense: recent.map((r) => (r.expense ?? 0) / 100),
+      savings: recent.map((r) => ((r.income ?? 0) - (r.expense ?? 0)) / 100),
+    }
+  }, [history])
+
+  function toggleMonth(target: string) {
+    setMonths((current) => current.includes(target) ? current.filter((m) => m !== target) : [...current, target].sort())
+  }
+  function setRange(count: number) {
+    setMonths(actualMonths.slice(-count))
+  }
   function pickCategory(id: string) {
-    const next = categoryId === id ? null : id
-    setCategoryId(next)
-    setFilters({ categoryId: next ?? 'all', kind: next ? 'expense' : state.filters.kind })
+    setCategoryId((current) => current === id ? null : id)
   }
-
   function saveView() {
-    const name = viewName.trim() || (months.length ? months.join(', ') : 'All months')
-    const next = [...views, { id: crypto.randomUUID(), name, months, focus, categoryId: categoryId ?? '' }]
-    setViews(next)
-    localStorage.setItem(VIEW_KEY, JSON.stringify(next))
+    if (!viewName.trim()) return
+    const next: SavedView = { id: String(Date.now()), name: viewName.trim(), months, focus, categoryId: categoryId ?? 'all' }
+    const updated = [...views.filter((v) => v.name !== next.name), next]
+    setViews(updated)
+    localStorage.setItem(VIEW_KEY, JSON.stringify(updated))
     setViewName('')
   }
-
   function applyView(view: SavedView) {
-    const month = view.months.length === 1 ? view.months[0] : 'all'
-    writtenMonth.current = month
     setMonths(view.months)
     setFocus(view.focus)
-    setCategoryId(view.categoryId || null)
-    setFilters({ month, categoryId: view.categoryId || 'all' })
+    setCategoryId(view.categoryId === 'all' ? null : view.categoryId)
+  }
+  function removeView(id: string) {
+    const updated = views.filter((v) => v.id !== id)
+    setViews(updated)
+    localStorage.setItem(VIEW_KEY, JSON.stringify(updated))
   }
 
-  const filtersActive = months.length > 0 || focus !== 'all' || categoryId
+  function deltaText(delta: number | null, prevMonth: string | undefined, emptyLabel: string) {
+    if (delta === null) return emptyLabel
+    const diff = formatMoney(Math.abs(delta))
+    return `${diff} ${delta >= 0 ? 'higher' : 'lower'} than ${prevMonth ?? 'prior'}`
+  }
 
   return (
-    <div className="stack">
-      <header className="page-head">
-        <div>
-          <h1>Dashboard</h1>
-          <p>{months.length === 0 ? periodLabel(state) : months.length === 1 ? `${employed ? 'Full-time plan' : 'Student life'} · ${months[0]}` : `${months.length} months selected`}. {employed ? 'These figures are the employment plan. Student spending is not included.' : 'These figures are student life only. The full-time salary plan is not included.'}</p>
-        </div>
-        {filtersActive ? <button type="button" className="btn" onClick={() => { writtenMonth.current = 'all'; setMonths([]); setFocus('all'); setCategoryId(null); setFilters({ month: 'all', categoryId: 'all', kind: 'all' }) }}>Clear</button> : null}
-      </header>
+    <div className="stack" style={{ gap: 18 }}>
+      {/* Executive Financial Brief - 8 core questions answered upfront */}
+      <ExecutiveBriefCard brief={brief} />
 
-      <section className="cmd">
+      {/* Top Filter and Perspective Controls */}
+      <div className="cmd" style={{ padding: '12px 16px' }}>
         <div>
-          <span>Month</span>
+          <span>Time span</span>
           <div className="chips">
-            <Chip active={months.length === 0} onClick={() => applyMonths([])}>All</Chip>
-            {(employed ? actualMonths.slice(0, 18) : actualMonths.slice(-18)).map((month) => (
-              <Chip key={month} active={months.includes(month)} onClick={() => toggleMonth(month)}>
-                {shortMonth(month)} <em>{month.slice(2, 4)}</em>
+            <button type="button" className={`btn ghost ${months.length === 0 ? 'active' : ''}`} style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={() => setMonths([])}>All ({actualMonths.length})</button>
+            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={() => setRange(3)}>Last 3m</button>
+            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={() => setRange(6)}>Last 6m</button>
+            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={() => setRange(12)}>Last 12m</button>
+            {actualMonths.map((m) => (
+              <Chip key={m} active={months.includes(m)} onClick={() => toggleMonth(m)}>
+                {shortMonth(m)}
               </Chip>
             ))}
           </div>
-        </div>
-        <div>
-          <span>Chart</span>
-          <PillTabs group="focus" value={focus} onChange={setFocus} items={[{ id: 'all', label: 'Income and spending' }, { id: 'income', label: 'Income' }, { id: 'expense', label: 'Spending' }]} />
         </div>
         <div>
           <span>Saved views</span>
           <div className="chips">
             {views.map((view) => (
-              <Chip key={view.id} active={false} onClick={() => applyView(view)}>
+              <button key={view.id} type="button" className="chip" onClick={() => applyView(view)}>
                 {view.name}
-                <em onClick={(event) => { event.stopPropagation(); const next = views.filter((item) => item.id !== view.id); setViews(next); localStorage.setItem(VIEW_KEY, JSON.stringify(next)) }}>×</em>
-              </Chip>
+                <em onClick={(e) => { e.stopPropagation(); removeView(view.id) }}>✕</em>
+              </button>
             ))}
-            <input aria-label="Name this view" placeholder="Name this view" value={viewName} onChange={(event) => setViewName(event.target.value)} />
-            <button type="button" className="btn" onClick={saveView}>Save view</button>
+            <input placeholder="Name this view" value={viewName} onChange={(e) => setViewName(e.target.value)} style={{ width: 140, padding: '3px 8px', fontSize: '0.8rem' }} />
+            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '3px 8px' }} onClick={saveView}>Save view</button>
           </div>
         </div>
-      </section>
+      </div>
 
-      {!figures.hasRecords ? (
+      {alerts.length ? (
         <Notice tone="warn">
-          No actual records for this selection. The latest recorded month is {state.stats?.actualEnd?.slice(0, 7) ?? 'not available'}.
-          <button type="button" className="btn" style={{ marginLeft: 8 }} onClick={() => state.stats?.actualEnd && toggleMonth(state.stats.actualEnd.slice(0, 7))}>Show latest actual month</button>
+          <strong>Spending alert:</strong> {alerts.map((item) => `${categoryName(state, item.categoryId)} rose by ${formatMoney(item.currentCents - item.previousCents)} in ${item.month}`).join(' · ')}
         </Notice>
       ) : null}
 
-      <section className="stat-grid">
-        <KpiButton label="Net income" value={formatMoney(figures.incomeCents)} tone={incomeDelta !== null && incomeDelta < 0 ? 'bad' : incomeDelta !== null && incomeDelta > 0 ? 'good' : 'neutral'} selected={focus === 'income'} spark={sparks.income} detail={deltaText(incomeDelta, previous?.month, 'No prior month in this selection')} onClick={() => setFocus((current) => current === 'income' ? 'all' : 'income')} />
-        <KpiButton label="Expenses" value={formatMoney(figures.expenseCents)} selected={focus === 'expense'} spark={sparks.expense} detail={expenseDelta === null ? 'Transfers are excluded' : `${formatMoney(Math.abs(expenseDelta))} ${expenseDelta > 0 ? 'higher' : 'lower'} than ${previous?.month}`} onClick={() => setFocus((current) => current === 'expense' ? 'all' : 'expense')} />
-        <KpiButton label="Savings" value={formatMoney(figures.savingsCents)} tone={savingsDelta !== null && savingsDelta < 0 ? 'bad' : 'neutral'} spark={sparks.savings} detail={employed ? 'Estimated net minus planned living costs. Student spending is excluded.' : savingsDelta === null ? 'Income minus expenses and debt payments' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`} onClick={() => setFocus('all')} />
-        <KpiButton label="Savings rate" value={formatPercent(figures.savingsRate)} detail={figures.incomeCents === 0 ? 'Income is zero, so the rate is undefined' : 'Savings divided by income'} onClick={() => setFocus('all')} />
-        <KpiButton label="Remaining budget" value={budgets.remaining === null ? 'No budget set' : formatMoney(budgets.remaining)} tone={budgets.over ? 'bad' : 'neutral'} detail={budgets.count ? `${budgets.count} monthly budgets` : 'Set a budget to track this'} href="#budgets" />
-        <KpiButton label="Outstanding debt" value={employed ? 'In student life' : formatMoney(debt.cents)} tone={!employed && debt.cents > 0 ? 'bad' : 'neutral'} detail={employed ? 'Repayments from the student workbook stay on their own' : debt.unconfirmed ? 'Workbook balance, not a confirmed statement' : 'Confirmed balances'} href="#debts" />
-        <KpiButton label="Savings balances" value={savingsBalance === null ? 'Unknown' : formatMoney(savingsBalance)} detail={savingsBalance === null ? 'No confirmed account balances' : 'Sum of balances you entered'} href="#savings" />
-        <KpiButton label="Planned bills" value={String(planBills.length)} detail={planBills.length ? planBills.slice(0, 2).map((rule) => rule.name).join(' · ') : 'No planned bill in this selection'} href="#calendar" />
+      {/* Summary KPI Cards covering all required indicators with nasta-style KpiCard */}
+      <section className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <KpiCard
+          label="1. Monthly Net Income"
+          value={(figures.incomeCents ?? 0) / 100}
+          icon={Wallet}
+          tone={incomeDelta !== null && incomeDelta > 0 ? 'positive' : incomeDelta !== null && incomeDelta < 0 ? 'negative' : 'neutral'}
+          trend={previous?.incomeCents && figures.incomeCents !== null && previous.incomeCents > 0 ? ((figures.incomeCents - previous.incomeCents) / previous.incomeCents) * 100 : null}
+          spark={sparks.income}
+          hint={deltaText(incomeDelta, previous?.month, 'No prior month in view')}
+          selected={focus === 'income'}
+          onClick={() => setFocus((current) => current === 'income' ? 'all' : 'income')}
+        />
+        <KpiCard
+          label="2. Total Living Expenses"
+          value={(figures.expenseCents ?? 0) / 100}
+          icon={Receipt}
+          tone="neutral"
+          trend={previous?.expenseCents && figures.expenseCents !== null && previous.expenseCents > 0 ? ((figures.expenseCents - previous.expenseCents) / previous.expenseCents) * 100 : null}
+          spark={sparks.expense}
+          hint={expenseDelta === null ? 'Transfers & debt payments excluded' : `${formatMoney(Math.abs(expenseDelta))} ${expenseDelta > 0 ? 'higher' : 'lower'} than ${previous?.month}`}
+          selected={focus === 'expense'}
+          onClick={() => setFocus((current) => current === 'expense' ? 'all' : 'expense')}
+        />
+        <KpiCard
+          label="3. Monthly Savings"
+          value={(figures.savingsCents ?? 0) / 100}
+          icon={TrendingUp}
+          tone={(figures.savingsCents ?? 0) >= 0 ? 'positive' : 'negative'}
+          badge={(figures.savingsCents ?? 0) >= 0 ? 'Surplus' : 'Deficit'}
+          spark={sparks.savings}
+          hint={employed ? 'Estimated net minus planned living costs' : savingsDelta === null ? 'Income minus living expenses' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`}
+          onClick={() => setFocus('all')}
+        />
+        <KpiCard
+          label="4. Savings Rate"
+          value={figures.savingsRate !== null ? figures.savingsRate : 0}
+          format={(v) => `${v.toFixed(1)}%`}
+          icon={Percent}
+          tone={figures.savingsRate !== null && figures.savingsRate >= 20 ? 'positive' : 'neutral'}
+          badge={figures.savingsRate !== null && figures.savingsRate >= 20 ? 'Healthy' : undefined}
+          hint={figures.incomeCents === 0 || figures.incomeCents === null ? 'Income is zero' : 'Actual savings ÷ net income'}
+          onClick={() => setFocus('all')}
+        />
+        <KpiCard
+          label="5. Available Cash Buffer"
+          value={brief.availableCashCents ? brief.availableCashCents / 100 : 0}
+          icon={Banknote}
+          tone={brief.availableCashCents && brief.availableCashCents > 0 ? 'positive' : 'neutral'}
+          badge={brief.availableCashCents && brief.availableCashCents > 0 ? 'Liquid' : undefined}
+          hint="Cash after expenses, debt payments & goals"
+          onClick={() => setFocus('all')}
+        />
+        <KpiCard
+          label="6. Remaining Budget"
+          value={budgets.remaining !== null ? budgets.remaining / 100 : 0}
+          icon={Target}
+          tone={budgets.over ? 'negative' : 'positive'}
+          badge={budgets.over ? 'Over budget' : budgets.remaining !== null ? 'On track' : undefined}
+          hint={budgets.count ? `${budgets.count} category budgets active` : 'Set category budgets'}
+          onClick={() => { window.location.hash = 'budgets' }}
+        />
+        <KpiCard
+          label="7. Outstanding Debt"
+          value={employed ? 0 : debt.cents / 100}
+          icon={Landmark}
+          tone={!employed && debt.cents > 0 ? 'negative' : 'positive'}
+          badge={employed ? 'Debt free' : debt.cents > 0 ? 'Active loans' : 'Paid off'}
+          hint={employed ? 'Full-time plan has zero debt' : debt.unconfirmed ? 'Appa €11.5k; Anna completed' : 'Confirmed balances'}
+          onClick={() => { window.location.hash = 'debts' }}
+        />
+        <KpiCard
+          label="8. Confirmed Balances"
+          value={savingsBalance !== null ? savingsBalance / 100 : 0}
+          icon={ShieldCheck}
+          badge={savingsBalance === null ? 'Goals active' : 'Confirmed'}
+          hint={savingsBalance === null ? 'ETF, SIP, Gold, Emergency goals active' : 'Confirmed account balances'}
+          onClick={() => { window.location.hash = 'savings' }}
+        />
+        <KpiCard
+          label="Upcoming Bills"
+          value={planBills.length}
+          format={(n) => `${Math.round(n)} bills`}
+          icon={CalendarClock}
+          hint={planBills.length ? planBills.slice(0, 2).map((r) => r.name).join(' · ') : 'No planned bills this month'}
+          onClick={() => { window.location.hash = 'calendar' }}
+        />
       </section>
 
+      {/* Main Charts Grid with ChartChrome wrapper */}
       <div className="grid-2">
-        <Panel title="Income and spending" extra={<Badge>Click a bar to select that month</Badge>}>
-          {history.every((row) => row.income === null && row.expense === null) ? <Empty title="No trend yet" body="Import or add records to see monthly income and spending." /> : (
+        <ChartChrome
+          title="Income versus Expenses"
+          hint="Click any bar to filter that specific month"
+          actions={<Badge tone="ok">Actuals</Badge>}
+        >
+          {history.every((row) => row.income === null && row.expense === null) ? (
+            <Empty title="No trend yet" body="Import or add records to see monthly income and spending." />
+          ) : (
             <div className="chart">
               <ResponsiveContainer>
-                <BarChart data={history} onClick={(chart) => { const month = (chart as { activePayload?: Array<{ payload?: { month?: string } }> })?.activePayload?.[0]?.payload?.month; if (month) toggleMonth(month) }}>
+                <BarChart
+                  data={history}
+                  onClick={(chart) => {
+                    const month = (chart as { activePayload?: Array<{ payload?: { month?: string } }> })?.activePayload?.[0]?.payload?.month
+                    if (month) toggleMonth(month)
+                  }}
+                >
                   <CartesianGrid stroke="var(--line)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 12 }} />
                   <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} />
-                  <Tooltip formatter={(value) => formatMoney(Math.round(Number(value) * 100))} />
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                  />
                   {(focus === 'all' || focus === 'income') && (
-                    <Bar dataKey="income" name="Income" fill="#0f7b4c" radius={[4, 4, 0, 0]} cursor="pointer">
-                      {history.map((row) => <Cell key={`in-${row.month}`} fillOpacity={months.length === 0 || months.includes(row.month) ? 1 : 0.28} />)}
+                    <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} cursor="pointer">
+                      {history.map((row) => (
+                        <Cell key={`in-${row.month}`} fillOpacity={months.length === 0 || months.includes(row.month) ? 1 : 0.28} />
+                      ))}
                     </Bar>
                   )}
                   {(focus === 'all' || focus === 'expense') && (
-                    <Bar dataKey="expense" name="Expenses" fill="#5c6b7a" radius={[4, 4, 0, 0]} cursor="pointer">
-                      {history.map((row) => <Cell key={`ex-${row.month}`} fillOpacity={months.length === 0 || months.includes(row.month) ? 1 : 0.28} />)}
+                    <Bar dataKey="expense" name="Expenses" fill="#64748b" radius={[4, 4, 0, 0]} cursor="pointer">
+                      {history.map((row) => (
+                        <Cell key={`ex-${row.month}`} fillOpacity={months.length === 0 || months.includes(row.month) ? 1 : 0.28} />
+                      ))}
                     </Bar>
                   )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
-        </Panel>
-        <Panel title="Where the money went" extra={<Badge>{categoryId ? categoryName(state, categoryId) : 'Click a category'}</Badge>}>
-          {slices.length === 0 ? <Empty title="No expenses in this view" body="Categories with no entry are omitted. They are not treated as zero." /> : (
+        </ChartChrome>
+
+        <ChartChrome
+          title="Where Most of the Money Goes"
+          hint="Largest spending categories for selected period"
+          actions={
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                type="button"
+                className={`btn ghost ${chartMode === 'bar' ? 'active' : ''}`}
+                style={{ fontSize: '0.78rem', padding: '3px 8px' }}
+                onClick={() => setChartMode('bar')}
+              >
+                Bar
+              </button>
+              <button
+                type="button"
+                className={`btn ghost ${chartMode === 'donut' ? 'active' : ''}`}
+                style={{ fontSize: '0.78rem', padding: '3px 8px' }}
+                onClick={() => setChartMode('donut')}
+              >
+                Donut
+              </button>
+              {categoryId ? <Badge tone="ok">{categoryName(state, categoryId)}</Badge> : null}
+            </div>
+          }
+        >
+          {slices.length === 0 ? (
+            <Empty title="No expenses in this view" body="Categories with no entry are omitted. They are never treated as zero." />
+          ) : chartMode === 'bar' ? (
             <div className="chart">
               <ResponsiveContainer>
                 <BarChart data={slices} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid stroke="var(--line)" horizontal={false} />
                   <XAxis type="number" tick={{ fill: 'var(--muted)', fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'var(--muted)', fontSize: 11 }} />
-                  <Tooltip formatter={(value) => formatMoney(Math.round(Number(value) * 100))} />
-                  <Bar dataKey="value" name="Spent" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => { const id = (item as { id?: string }).id; if (id) pickCategory(id) }}>
-                    {slices.map((slice) => <Cell key={slice.id} fill={categoryId && categoryId !== slice.id ? '#c5ced6' : colorFor(slice.id)} />)}
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name="Spent"
+                    radius={[0, 4, 4, 0]}
+                    cursor="pointer"
+                    onClick={(item) => {
+                      const id = (item as { id?: string }).id
+                      if (id) pickCategory(id)
+                    }}
+                  >
+                    {slices.map((slice) => (
+                      <Cell key={slice.id} fill={categoryId && categoryId !== slice.id ? '#94a3b8' : colorFor(slice.id)} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          ) : (
+            <div className="chart">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={slices}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    cursor="pointer"
+                    onClick={(item) => {
+                      if (item && 'id' in item && item.id) pickCategory(String(item.id))
+                    }}
+                  >
+                    {slices.map((slice) => (
+                      <Cell key={slice.id} fill={colorFor(slice.id)} opacity={categoryId && categoryId !== slice.id ? 0.35 : 1} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           )}
-        </Panel>
+        </ChartChrome>
       </div>
 
-      <SpendStack slices={slices.slice(0, 6).map((slice) => ({ id: slice.id, label: slice.name, cents: slice.cents, color: colorFor(slice.id) }))} onPick={pickCategory} />
+      {/* Proportional Spend Track */}
+      {slices.length > 0 ? (
+        <Panel title="Spending Distribution by Category">
+          <SpendStack slices={slices.map((s) => ({ id: s.id, label: s.name, cents: s.cents, color: colorFor(s.id) }))} onPick={pickCategory} />
+        </Panel>
+      ) : null}
 
+      {/* Category Drilldown */}
       {categoryId ? (
-        <Panel title={`Records in ${categoryName(state, categoryId)}`} extra={<button type="button" className="btn" onClick={() => { setFilters({ categoryId, kind: 'expense', month: months.length === 1 ? months[0] : 'all' }); location.hash = 'expenses' }}>Open in Expenses</button>}>
-          {drill.length === 0 ? <Empty title="No matching expenses" body="This category has no actual expense in the selected months." /> : (
+        <Panel
+          title={`Transactions for ${categoryName(state, categoryId)}`}
+          extra={
+            <button type="button" className="btn ghost" onClick={() => setCategoryId(null)}>
+              Clear filter
+            </button>
+          }
+        >
+          {drill.length === 0 ? (
+            <Empty title="No transactions" body="There are no individual records for this category in the selected period." />
+          ) : (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Description</th><th>Source</th><th className="num">Amount</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th className="num">Amount</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {drill.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td>{transaction.dayKnown ? transaction.date : transaction.date.slice(0, 7)}</td>
-                      <td>{transaction.description || categoryName(state, transaction.categoryId)}{transaction.confidence === 'needs_review' ? ' · review' : ''}</td>
-                      <td className="meta">{transaction.sourceSheet ? `${transaction.sourceSheet} ${transaction.sourceCell ?? ''}` : transaction.source}</td>
-                      <td className="num">{formatMoney(transaction.amountCents)}</td>
+                  {drill.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.date}</td>
+                      <td>{t.description || categoryName(state, t.categoryId)}</td>
+                      <td className="num">{formatMoney(t.amountCents)}</td>
+                      <td className="meta">{t.sourceSheet ? `${t.sourceSheet} ${t.sourceCell ?? ''}` : t.source}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -231,42 +465,6 @@ export function Dashboard() {
           )}
         </Panel>
       ) : null}
-
-      <div className="grid-2">
-        <Panel title="Needs a look">
-          {alerts.length === 0 ? <Empty title="No unusual category jump" body="A category is listed here when it is at least 50% and €50 above the previous month that contained it." /> : (
-            <div className="list">
-              {alerts.map((alert) => (
-                <button type="button" className="row-card linkish" key={`${alert.month}-${alert.categoryId}`} onClick={() => { applyMonths([alert.month]); pickCategory(alert.categoryId) }}>
-                  <div>
-                    <strong>{categoryName(state, alert.categoryId)}</strong>
-                    <div className="muted">{alert.month}: {formatMoney(alert.previousCents)} to {formatMoney(alert.currentCents)}</div>
-                  </div>
-                  <Badge tone="warn">Higher</Badge>
-                </button>
-              ))}
-            </div>
-          )}
-        </Panel>
-        <Panel title="Planned, not yet spent">
-          {planBills.length === 0 ? <Empty title="No planned bill in this selection" body={employed ? 'The full-time sheet has no non-zero bill in these months.' : 'Student life has no scheduled bill in these months. The employment plan is separate.'} /> : (
-            <div className="list">
-              {planBills.slice(0, 8).map((rule) => (
-                <div className="row-card" key={rule.id}>
-                  <div><strong>{rule.name}</strong><div className="muted">{rule.startMonth}{rule.endMonth ? ` to ${rule.endMonth}` : ''}</div></div>
-                  <Badge tone="warn">{formatMoney(rule.amountCents)} planned</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-      </div>
     </div>
   )
-}
-
-function deltaText(delta: number | null, month: string | undefined, empty: string): string {
-  if (delta === null || !month || month === 'all') return empty
-  const direction = delta === 0 ? 'unchanged from' : delta > 0 ? 'above' : 'below'
-  return `${formatMoney(Math.abs(delta))} ${direction} ${month}`
 }

@@ -20,6 +20,7 @@ import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { GermanPayslipCalculator } from '../components/GermanPayslipCalculator'
 import { DualCurrencyRemittance } from '../components/DualCurrencyRemittance'
+import { LifestyleCreepComparison } from '../components/LifestyleCreepComparison'
 import { activeChapter, scopeState } from '../lib/chapter'
 import { monthLabel } from '../lib/dates'
 import { estimatePayslip } from '../lib/forecast'
@@ -154,6 +155,9 @@ export function IncomePage() {
         />
         <DualCurrencyRemittance />
       </div>
+
+      {/* Student vs Full-Time Milestone & Lifestyle Creep Analysis (Item 8) */}
+      <LifestyleCreepComparison />
 
       {/* Charts Grid */}
       <div className="grid-2">

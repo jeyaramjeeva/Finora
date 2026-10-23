@@ -1942,3 +1942,47 @@ tr.clickable:hover { background: var(--surface-2); }
   margin-bottom: 8px;
 }
 
+/* ——— Print / PDF Statement Media Queries (Item 16) ——— */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .sidebar,
+  .topbar,
+  .cmd,
+  .icon-btn,
+  .collapse-btn,
+  .btn,
+  .chips,
+  .toast,
+  .drag-overlay,
+  .scrim,
+  .drawer-overlay {
+    display: none !important;
+  }
+  .app {
+    display: block !important;
+  }
+  .shell {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .content {
+    padding: 10px !important;
+    max-width: 100% !important;
+  }
+  .brief-card,
+  .kpi-card,
+  .finora-health-card,
+  .sankey-card,
+  .ftt-card,
+  .panel,
+  .wealth-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+}
+
+

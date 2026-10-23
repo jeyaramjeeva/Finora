@@ -21,6 +21,7 @@ export function BudgetsPage() {
   const state = scopeState(full)
 
   const [periodTab, setPeriodTab] = useState<'month' | 'year'>('month')
+  const [envelopeRollover, setEnvelopeRollover] = useState(false)
   const month = state.filters.month === 'all' ? (state.stats?.actualEnd?.slice(0, 7) ?? '2026-02') : state.filters.month
   const currentYear = Number(month.slice(0, 4))
   const previousMonth = month ? addMonths(month, -1) : ''
@@ -46,11 +47,14 @@ export function BudgetsPage() {
           ? eligibleSpend(state.transactions, category.id, { year: previousYear })
           : eligibleSpend(state.transactions, category.id, { month: previousMonth })
 
+        const priorUnspent = Math.max(0, (budget?.amountCents ?? 0) - prior)
+        const effectiveAmountCents = (budget?.amountCents ?? 0) + (envelopeRollover ? priorUnspent : 0)
+
         const projected = periodTab === 'month'
           ? projectMonthEnd(spent, month, new Date())
           : null
 
-        return { category, budget, applied, spent, prior, projected }
+        return { category, budget, applied, spent, prior, priorUnspent, effectiveAmountCents, projected }
       })
       .filter(
         (row) =>
@@ -60,7 +64,7 @@ export function BudgetsPage() {
             (t) => t.categoryId === row.category.id && t.kind === 'expense'
           )
       )
-  }, [state.categories, state.budgets, state.transactions, periodTab, month, currentYear, previousMonth, previousYear])
+  }, [state.categories, state.budgets, state.transactions, periodTab, month, currentYear, previousMonth, previousYear, envelopeRollover])
 
   // Fixed vs Variable aggregations
   const costBreakdown = useMemo(() => {
@@ -118,6 +122,42 @@ export function BudgetsPage() {
     })
   }
 
+  function applyTemplate(preset: 'frugal' | 'employed' | 'aggressive') {
+    const targets: Record<string, number> = preset === 'frugal'
+      ? { rent: 42000, grocer: 25000, transp: 4900, leisu: 6000 }
+      : preset === 'employed'
+        ? { rent: 85000, grocer: 35000, transp: 4900, din: 15000, person: 8000 }
+        : { rent: 65000, grocer: 28000, transp: 4900, din: 8000, sip: 100000 }
+
+    for (const [key, amountCents] of Object.entries(targets)) {
+      const match = state.categories.find((c) => c.id.toLowerCase().includes(key) || c.name.toLowerCase().includes(key))
+      if (match) {
+        const existing = state.budgets.find((b) => b.categoryId === match.id && b.period === periodTab)
+        saveBudget({
+          id: existing?.id ?? uid('budget'),
+          categoryId: match.id,
+          period: periodTab,
+          amountCents,
+        })
+      }
+    }
+  }
+
+  const monthlyNetIncomeCents = useMemo(() => {
+    const incTx = state.transactions.filter((t) => t.date.startsWith(month) && t.kind === 'income')
+    const total = incTx.reduce((s, t) => s + t.amountCents, 0)
+    return total > 0 ? total : 224000
+  }, [state.transactions, month])
+
+  const zeroBasedUnallocatedCents = monthlyNetIncomeCents - totalBudgetCents
+
+  const sinkingFundItems = [
+    { name: 'Semesterbeitrag (Uni & Student Union Fee)', cycle: 'Bi-annual (€200 / 6m)', monthlyCents: 3333 },
+    { name: 'Rundfunkbeitrag (ARD / ZDF License Fee)', cycle: 'Quarterly (€55.08 / 3m)', monthlyCents: 1836 },
+    { name: 'Haftpflichtversicherung (Personal Liability)', cycle: 'Annual (€60.00 / 12m)', monthlyCents: 500 },
+  ]
+  const totalSinkingMonthlyCents = sinkingFundItems.reduce((s, i) => s + i.monthlyCents, 0)
+
   return (
     <div className="stack" style={{ gap: 18 }}>
       <header className="page-head">
@@ -127,7 +167,7 @@ export function BudgetsPage() {
             Track actual spending against monthly and annual allocations, with 75%, 90%, and 100% threshold monitoring.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="pills">
             <button
               type="button"
@@ -144,8 +184,52 @@ export function BudgetsPage() {
               Annual Budgets ({currentYear})
             </button>
           </div>
+
+          <button
+            type="button"
+            className={`btn ghost ${envelopeRollover ? 'active tone-ok' : ''}`}
+            style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+            onClick={() => setEnvelopeRollover((e) => !e)}
+            title="Roll over unspent category surplus from previous month into current month's budget (Item 21)"
+          >
+            {envelopeRollover ? '✓ Rollover Envelopes ON' : 'Rollover Envelopes'}
+          </button>
         </div>
       </header>
+
+      {/* Preset Budget Profiles (Item 27) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>Apply Budget Template:</span>
+        <button type="button" className="btn ghost" style={{ fontSize: '0.78rem', padding: '3px 8px' }} onClick={() => applyTemplate('frugal')}>
+          Student Frugal (€779/mo)
+        </button>
+        <button type="button" className="btn ghost" style={{ fontSize: '0.78rem', padding: '3px 8px' }} onClick={() => applyTemplate('employed')}>
+          Full-Time Year 1 (€1,479/mo)
+        </button>
+        <button type="button" className="btn ghost" style={{ fontSize: '0.78rem', padding: '3px 8px' }} onClick={() => applyTemplate('aggressive')}>
+          Aggressive Wealth Builder (€2,079/mo)
+        </button>
+      </div>
+
+      {/* Zero-Based Budget Builder Summary (Item 24) */}
+      <div style={{ padding: '12px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--ok)', letterSpacing: '0.04em' }}>
+            Zero-Based Budget Builder (Every Euro Has a Job)
+          </span>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: 2 }}>
+            {zeroBasedUnallocatedCents === 0 ? '€0.00 Remaining (Perfect Balance!)' : `${formatMoney(zeroBasedUnallocatedCents)} Unassigned`}
+          </div>
+          <span className="muted" style={{ fontSize: '0.75rem' }}>
+            Net Income ({formatMoney(monthlyNetIncomeCents)}) &minus; Allocated Living Budgets ({formatMoney(totalBudgetCents)})
+          </span>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span className="status-pill ok" style={zeroBasedUnallocatedCents < 0 ? { color: 'var(--danger)', borderColor: 'var(--danger)' } : {}}>
+            {zeroBasedUnallocatedCents === 0 ? 'Zero-Based Balanced' : zeroBasedUnallocatedCents > 0 ? 'Buffer Available to Allocate' : 'Over-Allocated'}
+          </span>
+        </div>
+      </div>
 
       {/* KPI Overview Cards with nasta-style KpiCard */}
       <section className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -348,6 +432,31 @@ export function BudgetsPage() {
           </div>
         </Panel>
       </div>
+
+      {/* Annual Recurring Expense Sinking Fund Reserve (Item 29) */}
+      <Panel title="Annual &amp; Quarterly Sinking Fund Reserve Calculator">
+        <p className="muted" style={{ fontSize: '0.82rem', margin: '0 0 12px' }}>
+          Smooth out irregular annual bills (Rundfunkbeitrag, semester fees, liability insurance) by reserving a fixed amount each month.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          {sinkingFundItems.map((item) => (
+            <div key={item.name} className="wealth-timeline-card">
+              <span className="wealth-timeline-card__year">{item.name}</span>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--ok)', marginTop: 4 }}>
+                {formatMoney(item.monthlyCents)} / mo
+              </div>
+              <span className="muted" style={{ fontSize: '0.72rem' }}>{item.cycle}</span>
+            </div>
+          ))}
+          <div className="wealth-timeline-card" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+            <span className="wealth-timeline-card__year">Total Sinking Reserve</span>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent)', marginTop: 4 }}>
+              {formatMoney(totalSinkingMonthlyCents)} / mo
+            </div>
+            <span className="muted" style={{ fontSize: '0.72rem' }}>Recommended monthly automatic transfer</span>
+          </div>
+        </div>
+      </Panel>
 
       {/* Spending Insights & Alerts */}
       {alerts.length > 0 ? (

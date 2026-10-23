@@ -12,16 +12,18 @@ import {
   CalendarClock,
   PlusCircle,
 } from 'lucide-react'
-import { Badge, Empty, Field, Modal, Notice, Panel, Progress } from '../components/ui'
+import { Badge, Empty, Field, Modal, Notice, Panel } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { WealthPortfolioTracker } from '../components/WealthPortfolioTracker'
 import { DebtPayoffSimulator } from '../components/DebtPayoffSimulator'
 import { SubscriptionDetector } from '../components/SubscriptionDetector'
+import { InflationAdjuster } from '../components/InflationAdjuster'
+import { triggerConfetti } from '../components/Confetti'
 import { activeChapter, planSnapshot, scopeState } from '../lib/chapter'
 import { debtDisplayedBalance, debtWorkbookBalance, monthFigures, outstandingDebt, repaymentScenario } from '../lib/calc'
 import { uid } from '../lib/createState'
-import { daysInMonth, monthLabel, monthsBetween } from '../lib/dates'
+import { addMonths, daysInMonth, monthLabel, monthsBetween } from '../lib/dates'
 import { formatMoney, parseAmount } from '../lib/money'
 import { forecastFor } from '../lib/selectors'
 import type { Debt, Goal } from '../lib/types'
@@ -131,24 +133,48 @@ export function SavingsPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             {state.goals.map((goal) => {
-              const pct = goal.targetCents && goal.currentBalanceCents !== null ? Math.min(100, Math.round((goal.currentBalanceCents / goal.targetCents) * 100)) : null
+              const target = goal.targetCents ?? 0
+              const currentBal = goal.currentBalanceCents ?? 0
+              const pct = target > 0 && goal.currentBalanceCents !== null ? Math.min(100, Math.round((currentBal / target) * 100)) : null
+              const remainingCents = Math.max(0, target - currentBal)
+              const monthlyPace = goal.monthlyContributionCents || (target > 0 ? Math.round(target / 24) : 10000)
+              const monthsEst = Math.ceil(remainingCents / Math.max(monthlyPace, 1))
+              const completionEst = addMonths(new Date().toISOString().slice(0, 7), monthsEst)
+
+              // Circular progress calculations (Item 33)
+              const radius = 22
+              const circumference = 2 * Math.PI * radius
+              const strokeDashoffset = pct !== null ? circumference - (pct / 100) * circumference : circumference
+
               return (
                 <div key={goal.id} className="brief-card" style={{ padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <strong style={{ fontSize: '1rem' }}>{goal.name}</strong>
-                    <button
-                      type="button"
-                      className="btn ghost danger"
-                      style={{ fontSize: '0.75rem', padding: '2px 6px' }}
-                      onClick={() => deleteGoal(goal.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: '1rem', display: 'block' }}>{goal.name}</strong>
+                      <span className="muted" style={{ fontSize: '0.72rem' }}>Target: {formatMoney(target)}</span>
+                    </div>
 
-                  <div className="split" style={{ fontSize: '0.88rem', margin: '4px 0' }}>
-                    <span className="muted">Target:</span>
-                    <strong>{formatMoney(goal.targetCents)}</strong>
+                    {/* Circular Apple-Health Style Progress Ring (Item 33) */}
+                    <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+                      <svg width="52" height="52" viewBox="0 0 52 52">
+                        <circle cx="26" cy="26" r={radius} fill="none" stroke="var(--border)" strokeWidth="4" />
+                        <circle
+                          cx="26"
+                          cy="26"
+                          r={radius}
+                          fill="none"
+                          stroke={pct && pct >= 100 ? 'var(--ok)' : 'var(--accent)'}
+                          strokeWidth="4"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          transform="rotate(-90 26 26)"
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: '0.72rem', fontWeight: 800 }}>
+                        {pct !== null ? `${pct}%` : '—'}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="split" style={{ fontSize: '0.88rem', margin: '4px 0' }}>
@@ -158,19 +184,30 @@ export function SavingsPage() {
                     </strong>
                   </div>
 
-                  {pct !== null ? (
-                    <div style={{ margin: '8px 0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 4 }}>
-                        <span className="muted">Goal Progress</span>
-                        <strong>{pct}%</strong>
-                      </div>
-                      <Progress value={pct} />
-                    </div>
-                  ) : null}
+                  {/* Milestone Date Estimator (Item 40) & Monthly Pace */}
+                  <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--surface-2)', fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <span className="muted">Milestone Date: <strong style={{ color: 'var(--ok)' }}>{pct && pct >= 100 ? 'Achieved!' : monthLabel(completionEst)}</strong></span>
+                    <span className="muted">Required: <strong>{monthlyNeeded(goal)}</strong></span>
+                  </div>
 
-                  <div className="muted" style={{ fontSize: '0.8rem', marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                    <div>Deadline: <strong>{goal.deadline ?? 'No deadline specified'}</strong></div>
-                    <div>Required Pace: <strong>{monthlyNeeded(goal)}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                      onClick={() => triggerConfetti()}
+                      title="Celebrate Goal Milestone (Item 20)"
+                    >
+                      Celebrate Milestone 🎉
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost danger"
+                      style={{ fontSize: '0.72rem', padding: '2px 6px' }}
+                      onClick={() => deleteGoal(goal.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               )
@@ -660,6 +697,31 @@ export function CalendarPage() {
       {/* Subscription & Recurring Leaks Detector */}
       <SubscriptionDetector transactions={state.transactions} />
 
+      {/* SIP & Investment Execution Calendar Reminders (Item 37) */}
+      <div style={{ padding: '12px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+          <strong style={{ fontSize: '0.85rem' }}>Automatic SIP &amp; Investment Execution Dates:</strong>
+          <span className="muted" style={{ fontSize: '0.72rem' }}>Scheduled monthly investment debits</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+          <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--ok)' }}>2nd of Month</span>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, margin: '2px 0' }}>Trade Republic (MSCI World)</div>
+            <span className="muted" style={{ fontSize: '0.72rem' }}>€500.00 / mo · Core ETF</span>
+          </div>
+          <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent)' }}>5th of Month</span>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, margin: '2px 0' }}>Indian Mutual Fund SIP (UBI)</div>
+            <span className="muted" style={{ fontSize: '0.72rem' }}>₹25,000 (~€276.00) / mo · Flexicap</span>
+          </div>
+          <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--muted)' }}>10th of Month</span>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, margin: '2px 0' }}>Emergency Cash Reserve</div>
+            <span className="muted" style={{ fontSize: '0.72rem' }}>€150.00 / mo · Scalable Capital</span>
+          </div>
+        </div>
+      </div>
+
       {/* Unallocated Day Warning */}
       {unknown.length ? (
         <details style={{ background: 'var(--surface-2)', padding: '8px 12px', borderRadius: 8, fontSize: '0.85rem' }}>
@@ -889,6 +951,9 @@ export function ForecastPage() {
           </ResponsiveContainer>
         </div>
       </ChartChrome>
+
+      {/* Inflation & Multi-Year Purchasing Power Adjuster */}
+      <InflationAdjuster />
 
       {/* Month-by-Month Tabular Schedule */}
       <Panel title="Month-by-Month Financial Projection">

@@ -16,13 +16,15 @@ import {
   PlusCircle,
   Download,
 } from 'lucide-react'
+import { useStore } from '../state/store'
+import { formatMoney } from '../lib/money'
 
 interface CommandItem {
   id: string
   label: string
   hint: string
   icon: typeof LayoutDashboard
-  section: 'Navigation' | 'Actions'
+  section: 'Navigation' | 'Actions' | 'Transactions'
   onSelect: () => void
 }
 
@@ -41,6 +43,7 @@ export function CommandPalette({
   theme: 'light' | 'dark'
   onExportBackup?: () => void
 }) {
+  const { state } = useStore()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -209,10 +212,53 @@ export function CommandPalette({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return items
-    return items.filter(
+
+    const baseMatches = items.filter(
       (item) => item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q)
     )
-  }, [items, query])
+
+    // Fuzzy & operator transaction searching (Item 18)
+    const txMatches: CommandItem[] = []
+    if (q.length >= 2) {
+      let minAmount: number | null = null
+      let maxAmount: number | null = null
+      let term = q
+
+      if (q.startsWith('>')) {
+        minAmount = (parseFloat(q.slice(1)) || 0) * 100
+        term = ''
+      } else if (q.startsWith('<')) {
+        maxAmount = (parseFloat(q.slice(1)) || 0) * 100
+        term = ''
+      }
+
+      for (const t of state.transactions) {
+        if (txMatches.length >= 6) break
+        if (minAmount !== null && t.amountCents < minAmount) continue
+        if (maxAmount !== null && t.amountCents > maxAmount) continue
+
+        const desc = t.description.toLowerCase()
+        const notes = t.notes.toLowerCase()
+        const cat = t.categoryId.toLowerCase()
+
+        if (!term || desc.includes(term) || notes.includes(term) || cat.includes(term)) {
+          txMatches.push({
+            id: `tx-${t.id}`,
+            label: `${t.description || t.categoryId} · ${formatMoney(t.amountCents)}`,
+            hint: `${t.date} · ${t.categoryId} · ${t.account || 'Standard'}`,
+            icon: Receipt,
+            section: 'Transactions',
+            onSelect: () => {
+              window.location.hash = 'expenses'
+              onClose()
+            },
+          })
+        }
+      }
+    }
+
+    return [...baseMatches, ...txMatches]
+  }, [items, query, state.transactions])
 
   useEffect(() => {
     setSelectedIndex(0)

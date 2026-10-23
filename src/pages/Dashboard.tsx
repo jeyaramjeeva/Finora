@@ -10,6 +10,8 @@ import {
   Landmark,
   ShieldCheck,
   CalendarClock,
+  Printer,
+  Sliders,
 } from 'lucide-react'
 import { Chip, SpendStack } from '../components/interactive'
 import { Badge, Empty, Notice, Panel } from '../components/ui'
@@ -68,6 +70,25 @@ export function Dashboard() {
   const [drawerTitle, setDrawerTitle] = useState('')
   const [drawerSubtitle, setDrawerSubtitle] = useState<string | undefined>()
   const [drawerTransactions, setDrawerTransactions] = useState<Transaction[]>([])
+
+  const [visibleWidgets, setVisibleWidgets] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('cashmetry-widgets')
+      return saved ? JSON.parse(saved) : { brief: true, kpis: true, trend: true, sankey: true, heatmap: true, charts: true }
+    } catch {
+      return { brief: true, kpis: true, trend: true, sankey: true, heatmap: true, charts: true }
+    }
+  })
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [hoveredSlice, setHoveredSlice] = useState<{ id: string; name: string; cents: number; pct: number } | null>(null)
+
+  function toggleWidget(k: string) {
+    setVisibleWidgets((prev) => {
+      const next = { ...prev, [k]: !prev[k] }
+      localStorage.setItem('cashmetry-widgets', JSON.stringify(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     if (state.filters.month === writtenMonth.current) return
@@ -259,13 +280,21 @@ export function Dashboard() {
     return (savings / figures.incomeCents) * 100
   }, [figures])
 
+  const savingsMilestone = useMemo(() => {
+    const rate = figures.savingsRate ?? 0
+    if (rate >= 50) return { label: 'FIRE Ready (50%+)', badge: 'FIRE Ready' }
+    if (rate >= 40) return { label: 'Gold Wealth Builder (40%+)', badge: 'Gold Builder' }
+    if (rate >= 20) return { label: 'Silver Saver (20%+)', badge: 'Silver Saver' }
+    return { label: 'Bronze Starter (<20%)', badge: 'Bronze Starter' }
+  }, [figures.savingsRate])
+
   return (
     <div className="stack" style={{ gap: 18 }}>
       {/* Executive Financial Brief - 8 core questions answered upfront */}
-      <ExecutiveBriefCard brief={brief} />
+      {visibleWidgets.brief !== false && <ExecutiveBriefCard brief={brief} />}
 
       {/* Top Filter and Perspective Controls */}
-      <div className="cmd" style={{ padding: '12px 16px' }}>
+      <div className="cmd" style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <span>Time span</span>
           <div className="chips">
@@ -280,7 +309,8 @@ export function Dashboard() {
             ))}
           </div>
         </div>
-        <div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span>Saved views</span>
           <div className="chips">
             {views.map((view) => (
@@ -289,11 +319,52 @@ export function Dashboard() {
                 <em onClick={(e) => { e.stopPropagation(); removeView(view.id) }}>✕</em>
               </button>
             ))}
-            <input placeholder="Name this view" value={viewName} onChange={(e) => setViewName(e.target.value)} style={{ width: 140, padding: '3px 8px', fontSize: '0.8rem' }} />
-            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '3px 8px' }} onClick={saveView}>Save view</button>
+            <input placeholder="Name view" value={viewName} onChange={(e) => setViewName(e.target.value)} style={{ width: 100, padding: '3px 8px', fontSize: '0.8rem' }} />
+            <button type="button" className="btn ghost" style={{ fontSize: '0.8rem', padding: '3px 8px' }} onClick={saveView}>Save</button>
           </div>
+
+          <button
+            type="button"
+            className={`btn ghost ${customizeOpen ? 'active' : ''}`}
+            style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+            onClick={() => setCustomizeOpen((c) => !c)}
+            title="Customize Cockpit Widgets (Item 14)"
+          >
+            <Sliders size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            <span>Customize</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn ghost"
+            style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+            onClick={() => window.print()}
+            title="Generate Compact Printable Financial Statement (PDF - Item 16)"
+          >
+            <Printer size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            <span>Print PDF</span>
+          </button>
         </div>
       </div>
+
+      {customizeOpen && (
+        <div style={{ padding: '12px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '0.8rem' }}>Visible Cockpit Widgets:</strong>
+          {[
+            { id: 'brief', label: 'Executive Brief' },
+            { id: 'kpis', label: 'Hero KPIs' },
+            { id: 'trend', label: '6-Month Visualizer' },
+            { id: 'sankey', label: 'Cashflow Sankey & 50/30/20' },
+            { id: 'heatmap', label: 'Spending Heatmap' },
+            { id: 'charts', label: 'Category & Trends' },
+          ].map((w) => (
+            <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleWidgets[w.id] !== false} onChange={() => toggleWidget(w.id)} />
+              <span>{w.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
 
       {alerts.length ? (
         <Notice tone="warn">
@@ -383,8 +454,8 @@ export function Dashboard() {
           format={(v) => `${v.toFixed(1)}%`}
           icon={Percent}
           tone={figures.savingsRate !== null && figures.savingsRate >= 20 ? 'positive' : 'neutral'}
-          badge={figures.savingsRate !== null && figures.savingsRate >= 20 ? 'Healthy' : undefined}
-          hint={figures.incomeCents === 0 || figures.incomeCents === null ? 'Income is zero' : 'Actual savings ÷ net income'}
+          badge={savingsMilestone.badge}
+          hint={`Milestone: ${savingsMilestone.label}`}
           onClick={() => setFocus('all')}
         />
         <KpiCard
@@ -575,17 +646,49 @@ export function Dashboard() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="chart">
+            <div className="chart" style={{ position: 'relative' }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  pointerEvents: 'none',
+                  textAlign: 'center',
+                }}
+              >
+                <span className="muted" style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                  {hoveredSlice ? hoveredSlice.name : 'Total'}
+                </span>
+                <strong style={{ fontSize: '0.98rem', fontWeight: 800 }}>
+                  {hoveredSlice ? formatMoney(hoveredSlice.cents) : formatMoney(figures.expenseCents ?? 0)}
+                </strong>
+                <span className="muted" style={{ fontSize: '0.66rem' }}>
+                  {hoveredSlice ? `${hoveredSlice.pct}% of spend` : `${slices.length} categories`}
+                </span>
+              </div>
               <ResponsiveContainer>
                 <PieChart>
                   <Pie
                     data={slices}
                     dataKey="value"
                     nameKey="name"
-                    innerRadius={50}
+                    innerRadius={55}
                     outerRadius={80}
                     paddingAngle={2}
                     cursor="pointer"
+                    onMouseEnter={(item) => {
+                      const id = (item as { id?: string }).id
+                      const slice = slices.find((s) => s.id === id)
+                      if (slice) {
+                        const total = figures.expenseCents || 1
+                        const pct = Math.round((slice.cents / total) * 100)
+                        setHoveredSlice({ id: slice.id, name: slice.name, cents: slice.cents, pct })
+                      }
+                    }}
+                    onMouseLeave={() => setHoveredSlice(null)}
                     onClick={(item) => {
                       if (item && 'id' in item && item.id) pickCategory(String(item.id))
                     }}

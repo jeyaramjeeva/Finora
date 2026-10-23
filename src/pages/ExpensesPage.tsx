@@ -10,6 +10,7 @@ import {
   Search,
   Pencil,
   Trash2,
+  Zap,
 } from 'lucide-react'
 import { Empty, Field, Modal, Notice, Panel } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
@@ -34,6 +35,8 @@ export function ExpensesPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterKind, setFilterKind] = useState<string>('all')
   const [filterAccount, setFilterAccount] = useState<string>('all')
+  const [cadenceFilter, setCadenceFilter] = useState<'all' | 'recurring' | 'one_off'>('all')
+  const [taxOnly, setTaxOnly] = useState<boolean>(false)
   const [fromDate, setFromDate] = useState<string>('')
   const [toDate, setToDate] = useState<string>('')
 
@@ -58,6 +61,17 @@ export function ExpensesPage() {
     return [...set].sort()
   }, [state.transactions])
 
+  function isTaxDeductible(t: Transaction): boolean {
+    const text = `${t.categoryId} ${categoryName(state, t.categoryId)} ${t.description} ${t.notes}`.toLowerCase()
+    return (
+      text.includes('educat') || text.includes('study') || text.includes('course') ||
+      text.includes('semester') || text.includes('book') || text.includes('tuition') ||
+      text.includes('transport') || text.includes('commute') || text.includes('ticket') ||
+      text.includes('tech') || text.includes('laptop') || text.includes('software') ||
+      text.includes('work') || text.includes('relocat') || text.includes('visa')
+    )
+  }
+
   // Filtered transactions
   const rows = useMemo(() => {
     let list = visibleTransactions(state, { search, from: fromDate || undefined, to: toDate || undefined })
@@ -71,13 +85,21 @@ export function ExpensesPage() {
     if (filterAccount !== 'all') {
       list = list.filter((t) => t.account === filterAccount)
     }
+    if (cadenceFilter === 'recurring') {
+      list = list.filter((t) => t.recurring)
+    } else if (cadenceFilter === 'one_off') {
+      list = list.filter((t) => !t.recurring)
+    }
+    if (taxOnly) {
+      list = list.filter((t) => isTaxDeductible(t))
+    }
 
     return [...list].sort((a, b) => {
       if (sort === 'amount') return b.amountCents - a.amountCents
       if (sort === 'category') return categoryName(state, a.categoryId).localeCompare(categoryName(state, b.categoryId))
       return b.date.localeCompare(a.date) || a.description.localeCompare(b.description)
     })
-  }, [state, search, sort, filterCategory, filterKind, filterAccount, fromDate, toDate])
+  }, [state, search, sort, filterCategory, filterKind, filterAccount, cadenceFilter, taxOnly, fromDate, toDate])
 
   // Summary figures for filtered set
   const summary = useMemo(() => {
@@ -93,6 +115,31 @@ export function ExpensesPage() {
       maxCents,
     }
   }, [rows])
+
+  const taxDeductibleCents = useMemo(() => {
+    return rows
+      .filter((t) => t.kind === 'expense' && isTaxDeductible(t))
+      .reduce((s, t) => s + t.amountCents, 0)
+  }, [rows, state])
+
+  const estimatedRefundCents = useMemo(() => {
+    // German standard employee lump-sum allowance (Arbeitnehmer-Pauschbetrag) is €1,230/yr
+    const excess = Math.max(0, taxDeductibleCents - 123000)
+    return Math.round(excess * 0.30)
+  }, [taxDeductibleCents])
+
+  const highFrequencyCategories = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of rows) {
+      if (r.kind === 'expense') {
+        counts.set(r.categoryId, (counts.get(r.categoryId) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()].filter(([, count]) => count >= 15).map(([id, count]) => ({
+      name: categoryName(state, id),
+      count,
+    }))
+  }, [rows, state])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
@@ -236,6 +283,19 @@ export function ExpensesPage() {
         </div>
       ) : null}
 
+      {/* High-Frequency Spending / Impulse Buy Warning (Item 28) */}
+      {highFrequencyCategories.length > 0 ? (
+        <div className="quick-drop-banner" style={{ borderLeftColor: 'var(--accent)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Zap size={18} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <div>
+              <strong>High-Frequency Spending Alert:</strong>{' '}
+              {highFrequencyCategories.map((c) => `${c.name} (${c.count} purchases)`).join(' · ')} in current period. Consider consolidating to avoid micro-leaks.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showDuplicates && duplicateGroups.length > 0 ? (
         <Panel title="Potential Duplicate Expense Clusters">
           <div className="list">
@@ -291,6 +351,26 @@ export function ExpensesPage() {
         />
       </section>
 
+      {/* German Tax Deductible (Werbungskosten) & Refund Projection (Item 7) */}
+      <div style={{ padding: '12px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--ok)', letterSpacing: '0.04em' }}>
+            German Tax Deductible Expenses (Werbungskosten / Sonderausgaben)
+          </span>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: 2 }}>{formatMoney(taxDeductibleCents)} identified</div>
+          <span className="muted" style={{ fontSize: '0.75rem' }}>
+            Education, study tuition, semester ticket, commute, laptop &amp; study tech
+          </span>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span className="muted" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Estimated Tax Refund (Steuerrückerstattung):</span>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--ok)', marginTop: 2 }}>
+            {estimatedRefundCents > 0 ? `~${formatMoney(estimatedRefundCents)}` : 'Covered by €1,230 Pauschbetrag'}
+          </div>
+          <span className="muted" style={{ fontSize: '0.7rem' }}>Assuming ~30% marginal tax rate above Pauschbetrag</span>
+        </div>
+      </div>
+
       {/* Advanced Filter Toolbar */}
       <Panel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -337,6 +417,26 @@ export function ExpensesPage() {
                 <option key={acc} value={acc}>{acc}</option>
               ))}
             </select>
+
+            <select
+              aria-label="Cadence filter"
+              value={cadenceFilter}
+              onChange={(e) => { setCadenceFilter(e.target.value as 'all' | 'recurring' | 'one_off'); setPage(1) }}
+            >
+              <option value="all">All Cadences</option>
+              <option value="recurring">Recurring Only</option>
+              <option value="one_off">One-Off Purchases</option>
+            </select>
+
+            <button
+              type="button"
+              className={`btn ghost ${taxOnly ? 'active tone-ok' : ''}`}
+              style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+              onClick={() => { setTaxOnly((t) => !t); setPage(1) }}
+              title="Show tax-deductible items (Werbungskosten, Education, Commute)"
+            >
+              {taxOnly ? '✓ Tax Deductible' : 'Tax Deductible'}
+            </button>
 
             <select
               aria-label="Sort order"
@@ -466,8 +566,17 @@ export function ExpensesPage() {
                         {isIncome ? '+' : isExpense ? '-' : ''}{formatMoney(transaction.amountCents)}
                       </td>
                       <td className="meta" style={{ fontSize: '0.78rem' }}>
-                        {transaction.sourceSheet ? `${transaction.sourceSheet} ${transaction.sourceCell ?? ''}` : transaction.source}
-                        {transaction.recurring ? ' · Recurring' : ''}
+                        <div>{transaction.sourceSheet ? `${transaction.sourceSheet} ${transaction.sourceCell ?? ''}` : transaction.source}</div>
+                        <div style={{ marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <span className={`status-pill ${transaction.recurring ? 'ok' : ''}`} style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                            {transaction.recurring ? 'Recurring' : 'One-Off'}
+                          </span>
+                          {isTaxDeductible(transaction) && (
+                            <span className="status-pill ok" style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                              Tax Deductible
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>

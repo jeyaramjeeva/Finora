@@ -49,6 +49,26 @@ export function WealthPortfolioTracker() {
         </div>
       </div>
 
+      {/* Asset Allocation Donut / Diversification Stack (Item 36) */}
+      <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>Portfolio Asset Allocation &amp; Diversification</span>
+          <span className="muted" style={{ fontSize: '0.72rem' }}>Target: 85% Equities · 10% Gold · 5% Cash</span>
+        </div>
+        <div style={{ width: '100%', height: 10, borderRadius: 999, overflow: 'hidden', display: 'flex', background: 'var(--surface)' }}>
+          <div style={{ width: '55%', background: '#10b981' }} title="German World ETF (55%)" />
+          <div style={{ width: '30%', background: '#0f766e' }} title="Indian Equity SIP (30%)" />
+          <div style={{ width: '10%', background: '#f59e0b' }} title="Physical Gold Reserve (10%)" />
+          <div style={{ width: '5%', background: '#6366f1' }} title="Emergency Cash Buffer (5%)" />
+        </div>
+        <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap', fontSize: '0.72rem' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#10b981' }} /> German ETF (55%)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#0f766e' }} /> India SIP (30%)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} /> Physical Gold (10%)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1' }} /> Cash Reserve (5%)</span>
+        </div>
+      </div>
+
       {/* 4 Asset Buckets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
         <div className="wealth-bucket">

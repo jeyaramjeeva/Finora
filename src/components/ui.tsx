@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { formatMoney, formatPercent } from '../lib/money'
 
-export function Panel({ title, extra, children, className = '' }: { title?: string; extra?: ReactNode; children: ReactNode; className?: string }) {
+export function Panel({ title, extra, children, className = '' }: { title?: ReactNode; extra?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={`panel ${className}`}>
       {title ? (
@@ -47,10 +47,11 @@ export function Progress({ value }: { value: number | null }) {
   )
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children }: { title: ReactNode; onClose: () => void; children: ReactNode }) {
+  const label = typeof title === 'string' ? title : undefined
   return (
     <div className="modal-back" role="presentation" onClick={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()}>
         <header className="panel-head">
           <h2>{title}</h2>
           <button type="button" className="btn ghost" onClick={onClose}>Close</button>

@@ -1,6 +1,23 @@
 import * as XLSX from 'xlsx'
 import type { SheetData, Transaction } from './types'
 
+const IDENTITY_TOKENS = ['iban', 'steuer', 'social security', 'tax id', 'bic']
+
+/** Drop sheets that carry personal identifiers before the file is stored. */
+export function stripIdentitySheets(data: ArrayBuffer): ArrayBuffer {
+  const workbook = XLSX.read(data, { type: 'array' })
+  for (const name of [...workbook.SheetNames]) {
+    const sheet = workbook.Sheets[name]
+    const text = XLSX.utils.sheet_to_csv(sheet).toLowerCase()
+    const hits = IDENTITY_TOKENS.filter((token) => text.includes(token)).length
+    if (hits < 2) continue
+    delete workbook.Sheets[name]
+    workbook.SheetNames = workbook.SheetNames.filter((sheetName) => sheetName !== name)
+  }
+  const written = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as Uint8Array
+  return written.buffer.slice(written.byteOffset, written.byteOffset + written.byteLength) as ArrayBuffer
+}
+
 export function sheetsFromArrayBuffer(data: ArrayBuffer): SheetData[] {
   const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellFormula: true })
   return workbook.SheetNames.map((name) => {

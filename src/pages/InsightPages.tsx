@@ -412,7 +412,7 @@ export function DataPage() {
         <div>
           <h1>Data Management &amp; Excel Synchronization</h1>
           <p>
-            Your financial records stay private in this browser&apos;s IndexedDB. Re-uploading <code>Expense Tracker.xlsx</code> automatically updates all workbook calculations while preserving your manual entries.
+            The workbook is stored in this browser. Uploading a new <code>Expense Tracker.xlsx</code> replaces the previous file and the records that came from it. Entries you added by hand stay.
           </p>
         </div>
       </header>
@@ -423,7 +423,9 @@ export function DataPage() {
           <label className="drop" style={{ cursor: 'pointer' }} onClick={() => setUploadModalOpen(true)}>
             <strong>Drop or Click to Update Expense Tracker.xlsx</strong>
             <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-              Preview sheet differences, imported record counts, and date coverage before applying changes.
+              {state.workbookFileName
+                ? `Stored file: ${state.workbookFileName}${state.lastImportAt ? ` · replaced ${new Date(state.lastImportAt).toLocaleString()}` : ''}. A new upload replaces it.`
+                : 'No workbook is stored yet. Choose Expense Tracker.xlsx to save it here.'}
             </p>
           </label>
         </div>
@@ -432,9 +434,9 @@ export function DataPage() {
       <ExcelUploadModal
         open={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onCommit={(result, fileName) => {
-          commitImport(result)
-          setMessage(`Successfully updated dashboard from ${fileName}! (${result.stats.transactionCount} transactions synced)`)
+        onCommit={(result, fileName, bytes) => {
+          commitImport(result, { name: fileName, bytes })
+          setMessage(`Stored ${fileName} and replaced the previous workbook (${result.stats.transactionCount} records).`)
           setTimeout(() => setMessage(''), 5000)
         }}
       />

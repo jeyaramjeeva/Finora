@@ -236,6 +236,7 @@ export interface AppState {
   suppressedIds: string[]
   settings: Settings
   lastImportAt: string | null
+  workbookFileName?: string | null
   filters: Filters
 }
 

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createState, isAppState, uid } from '../lib/createState'
 import { parseWorkbook } from '../lib/parseWorkbook'
-import { loadState, saveState } from '../lib/storage'
+import { loadState, saveState, saveWorkbook } from '../lib/storage'
+import { stripIdentitySheets } from '../lib/xlsxIo'
 import type { AppState, Bill, Budget, Category, Debt, Filters, Goal, Transaction, TxKind } from '../lib/types'
 import { sheetsFromArrayBuffer } from '../lib/xlsxIo'
 
@@ -11,7 +12,7 @@ interface StoreValue {
   update(patch: (state: AppState) => AppState): void
   setFilters(patch: Partial<Filters>): void
   applyWorkbook(buffer: ArrayBuffer, asOf: string): ReturnType<typeof parseWorkbook>
-  commitImport(result: ReturnType<typeof parseWorkbook>): void
+  commitImport(result: ReturnType<typeof parseWorkbook>, file?: { name: string; bytes: ArrayBuffer }): void
   saveTransaction(transaction: Transaction, isNew: boolean): void
   deleteTransaction(id: string): void
   saveCategory(category: Category): void
@@ -106,7 +107,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     update: (patch) => setState((current) => patch(current)),
     setFilters: (patch) => setState((current) => ({ ...current, filters: { ...current.filters, ...patch } })),
     applyWorkbook: (buffer, asOf) => parseWorkbook(sheetsFromArrayBuffer(buffer), asOf),
-    commitImport: (result) => setState((current) => createState(result, current)),
+    commitImport: (result, file) => setState((current) => {
+      const next = createState(result, current)
+      if (!file) return next
+      next.workbookFileName = file.name
+      const updatedAt = next.lastImportAt ?? new Date().toISOString()
+      void saveWorkbook({ fileName: file.name, updatedAt, bytes: stripIdentitySheets(file.bytes) })
+      return next
+    }),
     saveTransaction: (transaction, isNew) => setState((current) => ({
       ...current,
       transactions: isNew

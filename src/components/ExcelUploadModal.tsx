@@ -7,12 +7,13 @@ import type { ImportResult } from '../lib/types'
 interface ExcelUploadModalProps {
   open: boolean
   onClose: () => void
-  onCommit: (result: ImportResult, fileName: string) => void
+  onCommit: (result: ImportResult, fileName: string, bytes: ArrayBuffer) => void
   initialFile?: File | null
 }
 
 export function ExcelUploadModal({ open, onClose, onCommit, initialFile }: ExcelUploadModalProps) {
   const [file, setFile] = useState<File | null>(initialFile ?? null)
+  const [bytes, setBytes] = useState<ArrayBuffer | null>(null)
   const [preview, setPreview] = useState<ImportResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +31,7 @@ export function ExcelUploadModal({ open, onClose, onCommit, initialFile }: Excel
     setError(null)
     try {
       const buffer = await selected.arrayBuffer()
+      setBytes(buffer)
       const sheets = sheetsFromArrayBuffer(buffer)
       const asOf = new Date().toISOString().slice(0, 10)
       const parsed = parseWorkbook(sheets, asOf)
@@ -55,10 +57,37 @@ export function ExcelUploadModal({ open, onClose, onCommit, initialFile }: Excel
   const matches = (preview?.reconciliation.length ?? 0) - diffs.length
 
   return (
-    <Modal title="Update Dashboard from Excel" onClose={onClose}>
+    <Modal
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              background: '#ffffff',
+              border: '1px solid var(--border)',
+              display: 'grid',
+              placeItems: 'center',
+              overflow: 'hidden',
+              padding: 2,
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src="/cashmetry-logo.png"
+              alt="Cashmetry"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
+          <span>Update Dashboard from Excel</span>
+        </div>
+      }
+      onClose={onClose}
+    >
       <div className="stack" style={{ gap: 14 }}>
         <p className="muted" style={{ fontSize: '0.9rem' }}>
-          Select or drop your latest <strong>Expense Tracker.xlsx</strong>. Your original workbook is read in the browser and never modified. Sensitive personal details (Tax ID, IBAN, Social security) are skipped and never stored.
+          Select or drop your latest <strong>Expense Tracker.xlsx</strong>. The new file replaces the workbook stored in this browser. Records you added by hand stay. Tax ID, IBAN, and similar identifiers are left out of what is stored.
         </p>
 
         <label className="drop" style={{ cursor: 'pointer', padding: preview ? '16px' : '28px' }}>
@@ -131,8 +160,9 @@ export function ExcelUploadModal({ open, onClose, onCommit, initialFile }: Excel
               <button
                 type="button"
                 className="btn primary"
+                disabled={!bytes}
                 onClick={() => {
-                  onCommit(preview, file?.name ?? 'Expense Tracker.xlsx')
+                  if (bytes) onCommit(preview, file?.name ?? 'Expense Tracker.xlsx', bytes)
                   onClose()
                 }}
               >

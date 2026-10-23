@@ -187,9 +187,9 @@ function Shell() {
         open={uploadOpen}
         initialFile={droppedFile}
         onClose={() => { setUploadOpen(false); setDroppedFile(null) }}
-        onCommit={(result, fileName) => {
-          commitImport(result)
-          setToast(`Dashboard successfully updated from ${fileName}! (${result.stats.transactionCount} records synced)`)
+        onCommit={(result, fileName, bytes) => {
+          commitImport(result, { name: fileName, bytes })
+          setToast(`Stored ${fileName} and replaced the workbook records (${result.stats.transactionCount}).`)
           setTimeout(() => setToast(null), 5500)
           location.hash = 'dashboard'
         }}
@@ -216,11 +216,10 @@ function Shell() {
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark" style={{ overflow: 'hidden' }}>
+          <div className="brand-mark">
             <img
-              src="/brand-icon.png"
-              alt="Logo"
-              style={{ width: 22, height: 22, objectFit: 'contain' }}
+              src="/cashmetry-logo.png"
+              alt="Cashmetry"
               onError={(e) => {
                 e.currentTarget.style.display = 'none'
               }}
@@ -228,7 +227,7 @@ function Shell() {
           </div>
           <div className="brand-copy">
             <strong>Cashmetry</strong>
-            <small>Local &amp; Encrypted</small>
+            <small>Personal Finance Cockpit</small>
           </div>
           <button
             type="button"

@@ -14,7 +14,33 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
 
   return (
     <Panel
-      title="Financial Brief · Immediate Answers"
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              background: '#ffffff',
+              border: '1px solid var(--border)',
+              display: 'grid',
+              placeItems: 'center',
+              overflow: 'hidden',
+              padding: 2,
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src="/cashmetry-mark.png"
+              alt="Cashmetry"
+              width={20}
+              height={20}
+              style={{ width: '100%', height: '100%', maxWidth: 20, maxHeight: 20, objectFit: 'contain', display: 'block' }}
+            />
+          </div>
+          <span>Financial Brief · Immediate Answers</span>
+        </div>
+      }
       className="executive-brief"
       extra={
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

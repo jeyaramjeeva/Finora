@@ -75,9 +75,11 @@ export function ExcelUploadModal({ open, onClose, onCommit, initialFile }: Excel
             }}
           >
             <img
-              src="/cashmetry-logo.png"
+              src="/cashmetry-mark.png"
               alt="Cashmetry"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              width={20}
+              height={20}
+              style={{ width: '100%', height: '100%', maxWidth: 20, maxHeight: 20, objectFit: 'contain', display: 'block' }}
             />
           </div>
           <span>Update Dashboard from Excel</span>

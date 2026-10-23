@@ -7,6 +7,7 @@ import {
   roundEuro,
 } from './euroAmount'
 import { findDuplicateExpenses, formatDuplicateAlert } from './duplicateExpenses'
+import { getCategoryMeta } from '../components/CategoryBadge'
 import type { Transaction } from './types'
 
 describe('euroAmount helpers (from nasta-dashboard)', () => {
@@ -109,5 +110,37 @@ describe('findDuplicateExpenses (from nasta-dashboard)', () => {
 
     const alert = formatDuplicateAlert(dupes[0])
     expect(alert).toContain('Potential duplicate: €45.00 on 2025-01-15')
+  })
+})
+
+describe('getCategoryMeta (from finora-main inspiration)', () => {
+  it('maps groceries correctly', () => {
+    const meta = getCategoryMeta('groceries')
+    expect(meta.id).toBe('groceries')
+    expect(meta.color).toBe('#10b981')
+  })
+
+  it('maps dining / food correctly', () => {
+    const meta = getCategoryMeta('restaurant')
+    expect(meta.id).toBe('food')
+    expect(meta.color).toBe('#f97316')
+  })
+
+  it('maps rent and accommodation correctly', () => {
+    const meta = getCategoryMeta('Rent and accommodation')
+    expect(meta.id).toBe('rent')
+    expect(meta.color).toBe('#6366f1')
+  })
+
+  it('maps debts and repayments correctly', () => {
+    const meta = getCategoryMeta('repay')
+    expect(meta.id).toBe('debts')
+    expect(meta.color).toBe('#f43f5e')
+  })
+
+  it('returns fallback for unknown categories', () => {
+    const meta = getCategoryMeta('custom-unmatched-thing')
+    expect(meta.id).toBe('other')
+    expect(meta.color).toBe('#94a3b8')
   })
 })

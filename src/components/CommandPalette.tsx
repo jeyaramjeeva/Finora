@@ -295,6 +295,16 @@ export function CommandPalette({
           )}
         </div>
         <div className="cmd-footer">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <img
+              src="/cashmetry-mark.png"
+              alt=""
+              width={14}
+              height={14}
+              style={{ width: 14, height: 14, maxWidth: 14, maxHeight: 14, borderRadius: 3, objectFit: 'contain', display: 'inline-block' }}
+            />
+            <b>Cashmetry</b>
+          </span>
           <span>Use <b>↑</b> <b>↓</b> to navigate</span>
           <span><b>↵</b> to select</span>
           <span><b>Esc</b> to close</span>

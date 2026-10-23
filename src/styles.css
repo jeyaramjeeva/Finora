@@ -84,6 +84,7 @@
 }
 
 * { box-sizing: border-box; }
+img, picture, svg, video { max-width: 100%; }
 html, body, #root { margin: 0; min-height: 100%; }
 body {
   font-family: var(--font);
@@ -125,16 +126,35 @@ h3 { font-size: 0.95rem; font-weight: 600; }
   position: relative;
 }
 .brand-mark {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  max-width: 36px;
+  max-height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--green), var(--accent));
-  color: white;
-  display: grid;
-  place-items: center;
-  font-size: 0.88rem;
-  font-weight: 800;
-  box-shadow: 0 4px 12px var(--green-soft);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 3px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+.brand-mark:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28);
+}
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  display: block;
 }
 .brand-copy strong {
   display: block;
@@ -592,11 +612,13 @@ tr.clickable:hover { background: var(--surface-2); }
 .menu-btn { display: none; }
 .app.is-collapsed { --sidebar-w: 80px; }
 .nav-mark { display: none; width: 24px; height: 24px; border-radius: 7px; background: var(--surface-2); place-items: center; font-size: 0.78rem; font-weight: 700; }
+.app.is-collapsed .brand { flex-direction: column; padding: 10px 4px 16px; gap: 8px; align-items: center; }
 .app.is-collapsed .brand-copy, .app.is-collapsed .nav-label, .app.is-collapsed .sidebar-foot small { display: none; }
 .app.is-collapsed .nav a { display: flex; justify-content: center; padding: 10px; }
 .app.is-collapsed .nav-mark { display: grid; }
 .app.is-collapsed .sidebar-foot .btn { font-size: 0.72rem; padding: 6px; }
 .collapse-btn { margin-left: auto; width: 28px; height: 28px; }
+.app.is-collapsed .collapse-btn { margin-left: 0; }
 
 .chips, .pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip, .pills button, .kpi { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; font-weight: 600; }

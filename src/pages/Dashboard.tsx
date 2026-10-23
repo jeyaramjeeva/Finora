@@ -18,6 +18,11 @@ import { KpiCard } from '../components/KpiCard'
 import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { CashflowHealthCard } from '../components/CashflowHealthCard'
 import { CategoryBadge } from '../components/CategoryBadge'
+import { FinoraHealthCard } from '../components/FinoraHealthCard'
+import { FinoraTrendChart } from '../components/FinoraTrendChart'
+import { FinoraQuickAdd } from '../components/FinoraQuickAdd'
+import { FinoraCategoryBreakdown } from '../components/FinoraCategoryBreakdown'
+import { FinoraRecentTransactions } from '../components/FinoraRecentTransactions'
 import { activeChapter, employedMonths, planCategoryTotals, scopeState } from '../lib/chapter'
 import { addMonths, shortMonth } from '../lib/dates'
 import { unusualIncreases } from '../lib/insights'
@@ -42,7 +47,7 @@ function loadViews(): SavedView[] {
 }
 
 export function Dashboard() {
-  const { state: full } = useStore()
+  const { state: full, saveTransaction } = useStore()
   const state = scopeState(full)
   const employed = activeChapter(state) === 'employed'
   const actualMonths = useMemo(() => employed ? employedMonths(state) : [...new Set(state.transactions.filter((transaction) => transaction.origin === 'actual').map((transaction) => transaction.date.slice(0, 7)))].sort(), [employed, state])
@@ -163,6 +168,60 @@ export function Dashboard() {
     return `${diff} ${delta >= 0 ? 'higher' : 'lower'} than ${prevMonth ?? 'prior'}`
   }
 
+  const healthScore = useMemo(() => {
+    let score = 70
+    if (figures.incomeCents && figures.incomeCents > 0) {
+      const rate = figures.savingsRate ?? 0
+      score += Math.min(25, Math.max(-25, Math.round(rate * 0.8)))
+    }
+    if ((brief.spentCents ?? 0) > 0) {
+      if (budgets.remaining !== null && budgets.remaining >= 0) score += 10
+      else if (budgets.over) score -= 15
+    }
+    if (debt.cents === 0) score += 10
+    else if (debt.cents > 1000000) score -= 5
+    return Math.max(15, Math.min(100, score))
+  }, [figures, brief, budgets, debt.cents])
+
+  const runwayMonths = useMemo(() => {
+    if (!trailingExpenseAvgCents || trailingExpenseAvgCents <= 0) return null
+    const buffer = brief.availableCashCents || brief.earnedCents || 0
+    return buffer > 0 ? buffer / trailingExpenseAvgCents : null
+  }, [trailingExpenseAvgCents, brief])
+
+  function handleAddQuickTransaction(tx: {
+    description: string
+    amountCents: number
+    categoryId: string
+    kind: 'expense' | 'income'
+  }) {
+    saveTransaction(
+      {
+        id: `manual:${Date.now()}`,
+        date: new Date().toISOString().slice(0, 10),
+        dayKnown: true,
+        description: tx.description,
+        categoryId: tx.categoryId,
+        amountCents: tx.amountCents,
+        kind: tx.kind,
+        account: '',
+        notes: 'Quick-added from Dashboard',
+        origin: 'actual',
+        confidence: 'confirmed',
+        source: 'manual',
+        chapter: activeChapter(state),
+        recurring: false,
+      },
+      true
+    )
+  }
+
+  const netSavingsMargin = useMemo(() => {
+    if (!figures.incomeCents || figures.incomeCents <= 0) return null
+    const savings = figures.savingsCents ?? (figures.incomeCents - (figures.expenseCents ?? 0))
+    return (savings / figures.incomeCents) * 100
+  }, [figures])
+
   return (
     <div className="stack" style={{ gap: 18 }}>
       {/* Executive Financial Brief - 8 core questions answered upfront */}
@@ -205,10 +264,26 @@ export function Dashboard() {
         </Notice>
       ) : null}
 
-      {/* Summary KPI Cards covering all required indicators with nasta-style KpiCard */}
-      <section className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      {/* 1. Hero KPI Metric Cards Grid featuring Finora Health Card on the top left */}
+      <section className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+        <FinoraHealthCard
+          score={healthScore}
+          runwayMonths={runwayMonths}
+          savingsCents={figures.savingsCents ?? 0}
+        />
         <KpiCard
-          label="1. Monthly Net Income"
+          label="Net Balance / Savings"
+          value={(figures.savingsCents ?? 0) / 100}
+          icon={TrendingUp}
+          tone={(figures.savingsCents ?? 0) >= 0 ? 'positive' : 'negative'}
+          badge={(figures.savingsCents ?? 0) >= 0 ? 'Surplus' : 'Deficit'}
+          trend={previous?.savingsCents && figures.savingsCents !== null && previous.savingsCents !== 0 ? ((figures.savingsCents - previous.savingsCents) / Math.abs(previous.savingsCents)) * 100 : null}
+          spark={sparks.savings}
+          hint={employed ? 'Estimated net minus planned living costs' : savingsDelta === null ? 'Income minus living expenses' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`}
+          onClick={() => setFocus('all')}
+        />
+        <KpiCard
+          label="Monthly Net Income"
           value={(figures.incomeCents ?? 0) / 100}
           icon={Wallet}
           tone={incomeDelta !== null && incomeDelta > 0 ? 'positive' : incomeDelta !== null && incomeDelta < 0 ? 'negative' : 'neutral'}
@@ -219,7 +294,7 @@ export function Dashboard() {
           onClick={() => setFocus((current) => current === 'income' ? 'all' : 'income')}
         />
         <KpiCard
-          label="2. Total Living Expenses"
+          label="Total Living Expenses"
           value={(figures.expenseCents ?? 0) / 100}
           icon={Receipt}
           tone="neutral"
@@ -229,18 +304,44 @@ export function Dashboard() {
           selected={focus === 'expense'}
           onClick={() => setFocus((current) => current === 'expense' ? 'all' : 'expense')}
         />
+      </section>
+
+      {/* 2. Main Two-Column Layout from Finora Prototype (Chart + Quick Add & Categories + Recent Table) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+        {/* Left Column: 6-Month Visualizer + Recent Transactions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+          <FinoraTrendChart
+            data={history}
+            netSavingsMargin={netSavingsMargin}
+            averageExpenseCents={trailingExpenseAvgCents}
+            activeMonth={months.length === 1 ? months[0] : undefined}
+            onSelectMonth={toggleMonth}
+          />
+          <FinoraRecentTransactions
+            transactions={state.transactions.filter((t) => t.origin === 'actual')}
+            onViewAll={() => { window.location.hash = 'expenses' }}
+          />
+        </div>
+
+        {/* Right Column: Quick Add Transaction + Category Spend Breakdown */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+          <FinoraQuickAdd
+            categories={state.categories}
+            onAddTransaction={handleAddQuickTransaction}
+          />
+          <FinoraCategoryBreakdown
+            slices={slices}
+            totalCents={figures.expenseCents ?? 0}
+            onCategoryClick={pickCategory}
+            selectedId={categoryId}
+          />
+        </div>
+      </div>
+
+      {/* 3. Secondary Financial Indicators */}
+      <section className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <KpiCard
-          label="3. Monthly Savings"
-          value={(figures.savingsCents ?? 0) / 100}
-          icon={TrendingUp}
-          tone={(figures.savingsCents ?? 0) >= 0 ? 'positive' : 'negative'}
-          badge={(figures.savingsCents ?? 0) >= 0 ? 'Surplus' : 'Deficit'}
-          spark={sparks.savings}
-          hint={employed ? 'Estimated net minus planned living costs' : savingsDelta === null ? 'Income minus living expenses' : `${formatMoney(Math.abs(savingsDelta))} ${savingsDelta < 0 ? 'below' : 'above'} ${previous?.month}`}
-          onClick={() => setFocus('all')}
-        />
-        <KpiCard
-          label="4. Savings Rate"
+          label="Savings Rate"
           value={figures.savingsRate !== null ? figures.savingsRate : 0}
           format={(v) => `${v.toFixed(1)}%`}
           icon={Percent}
@@ -250,7 +351,7 @@ export function Dashboard() {
           onClick={() => setFocus('all')}
         />
         <KpiCard
-          label="5. Available Cash Buffer"
+          label="Available Cash Buffer"
           value={brief.availableCashCents ? brief.availableCashCents / 100 : 0}
           icon={Banknote}
           tone={brief.availableCashCents && brief.availableCashCents > 0 ? 'positive' : 'neutral'}
@@ -259,7 +360,7 @@ export function Dashboard() {
           onClick={() => setFocus('all')}
         />
         <KpiCard
-          label="6. Remaining Budget"
+          label="Remaining Budget"
           value={budgets.remaining !== null ? budgets.remaining / 100 : 0}
           icon={Target}
           tone={budgets.over ? 'negative' : 'positive'}
@@ -268,7 +369,7 @@ export function Dashboard() {
           onClick={() => { window.location.hash = 'budgets' }}
         />
         <KpiCard
-          label="7. Outstanding Debt"
+          label="Outstanding Debt"
           value={employed ? 0 : debt.cents / 100}
           icon={Landmark}
           tone={!employed && debt.cents > 0 ? 'negative' : 'positive'}
@@ -277,7 +378,7 @@ export function Dashboard() {
           onClick={() => { window.location.hash = 'debts' }}
         />
         <KpiCard
-          label="8. Confirmed Balances"
+          label="Confirmed Balances"
           value={savingsBalance !== null ? savingsBalance / 100 : 0}
           icon={ShieldCheck}
           badge={savingsBalance === null ? 'Goals active' : 'Confirmed'}

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finora — Financial Intelligence</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdf4', 500: '#10b981', 600: '#059669', 700: '#047857' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body class="bg-[#F8FAFC] text-slate-800 antialiased min-h-screen flex flex-col md:flex-row">
+
+  <!-- Sidebar Navigation -->
+  <aside class="w-full md:w-64 bg-slate-900 text-slate-300 p-6 flex flex-col justify-between shrink-0">
+    <div class="space-y-8">
+      <!-- Finora Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-300 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 font-extrabold text-xl">
+          F
+        </div>
+        <div>
+          <span class="text-white font-bold text-lg tracking-tight">Finora</span>
+          <span class="block text-[11px] text-emerald-400 font-medium uppercase tracking-wider">Workspace</span>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="space-y-1.5 text-sm font-medium">
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 font-semibold transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Overview
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg>
+          Income
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/></svg>
+          Expenses
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Budgets
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Insights
+        </a>
+      </nav>
+    </div>
+
+    <!-- User / Session Indicator -->
+    <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-bold text-white text-xs">JD</div>
+        <div>
+          <p class="text-xs font-semibold text-white">Jeyaram J.</p>
+          <p class="text-[11px] text-slate-400">Personal Pro</p>
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-white transition" title="Logout">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full space-y-8">
+    
+    <!-- Top Action Header -->
+    <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Financial Overview</h1>
+        <p class="text-sm text-slate-500 mt-1">Live metrics, budget tracking, and cashflow distribution.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span> Synchronized
+        </span>
+        <button onclick="document.getElementById('quick-add-input').focus()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition shadow-sm hover:shadow">
+          + Quick Transaction
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Metric Cards Grid -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      
+      <!-- Cashflow Health Card -->
+      <div class="p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-sm flex flex-col justify-between hover:-translate-y-1 transition duration-200">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Health Index</span>
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300">Optimal</span>
+        </div>
+        <div class="my-4 flex items-baseline gap-2">
+          <span id="health-score" class="text-4xl font-extrabold tracking-tight">88</span>
+          <span class="text-slate-400 font-medium">/ 100</span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
+          <div class="bg-gradient-to-r from-teal-400 to-emerald-400 h-1.5 rounded-full" style="width: 88%"></div>
+        </div>
+        <p class="text-xs text-slate-400 mt-3">Runway buffer is healthy for 5.2 months.</p>
+      </div>
+
+      <!-- Net Balance -->
+      <div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:-translate-y-1 transition duration-200">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <span>Net Balance</span>
+          <span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">+14.2%</span>
+        </div>
+        <div class="my-3">
+          <span id="net-balance" class="text-3xl font-bold text-slate-900">€ 5,240.00</span>
+        </div>
+        <!-- Sparkline mini chart -->
+        <svg class="w-full h-8 text-emerald-500 overflow-visible" viewBox="0 0 100 25" preserveAspectRatio="none">
+          <path d="M0,20 Q20,18 40,12 T80,8 T100,2" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- Total Income -->
+      <div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:-translate-y-1 transition duration-200">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <span>Monthly Income</span>
+          <span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">+8.4%</span>
+        </div>
+        <div class="my-3">
+          <span id="total-income" class="text-3xl font-bold text-slate-900">€ 8,450.00</span>
+        </div>
+        <svg class="w-full h-8 text-teal-500 overflow-visible" viewBox="0 0 100 25" preserveAspectRatio="none">
+          <path d="M0,22 Q25,15 50,14 T85,6 T100,4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- Total Expenses -->
+      <div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:-translate-y-1 transition duration-200">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <span>Total Expenses</span>
+          <span class="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md text-[11px] font-bold">-3.1%</span>
+        </div>
+        <div class="my-3">
+          <span id="total-expenses" class="text-3xl font-bold text-slate-900">€ 3,210.00</span>
+        </div>
+        <svg class="w-full h-8 text-rose-500 overflow-visible" viewBox="0 0 100 25" preserveAspectRatio="none">
+          <path d="M0,8 Q30,12 60,16 T85,19 T100,23" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+    </section>
+
+    <!-- Main Section: Chart + Quick Add & Categories -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      
+      <!-- Chart Card (Income vs Expense) -->
+      <div class="lg:col-span-2 p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Income vs. Expenses</h2>
+            <p class="text-xs text-slate-500">6-Month Trend comparison</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs font-semibold">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span> Income</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-rose-400"></span> Expenses</span>
+          </div>
+        </div>
+
+        <!-- Responsive SVG Area/Bar Visualizer -->
+        <div class="relative w-full h-64 flex items-end justify-between pt-8 px-4 border-b border-slate-100">
+          <!-- Month 1: May -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 65%" class="w-4 sm:w-6 bg-emerald-500/80 rounded-t-lg group-hover:bg-emerald-600 transition" title="Income: €6,500"></div>
+              <div style="height: 38%" class="w-4 sm:w-6 bg-rose-400 rounded-t-lg group-hover:bg-rose-500 transition" title="Expense: €3,800"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-400">May</span>
+          </div>
+          <!-- Month 2: Jun -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 72%" class="w-4 sm:w-6 bg-emerald-500/80 rounded-t-lg group-hover:bg-emerald-600 transition" title="Income: €7,200"></div>
+              <div style="height: 42%" class="w-4 sm:w-6 bg-rose-400 rounded-t-lg group-hover:bg-rose-500 transition" title="Expense: €4,200"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-400">Jun</span>
+          </div>
+          <!-- Month 3: Jul -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 60%" class="w-4 sm:w-6 bg-emerald-500/80 rounded-t-lg group-hover:bg-emerald-600 transition" title="Income: €6,000"></div>
+              <div style="height: 35%" class="w-4 sm:w-6 bg-rose-400 rounded-t-lg group-hover:bg-rose-500 transition" title="Expense: €3,500"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-400">Jul</span>
+          </div>
+          <!-- Month 4: Aug -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 85%" class="w-4 sm:w-6 bg-emerald-500/80 rounded-t-lg group-hover:bg-emerald-600 transition" title="Income: €8,500"></div>
+              <div style="height: 45%" class="w-4 sm:w-6 bg-rose-400 rounded-t-lg group-hover:bg-rose-500 transition" title="Expense: €4,500"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-400">Aug</span>
+          </div>
+          <!-- Month 5: Sep -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 78%" class="w-4 sm:w-6 bg-emerald-500/80 rounded-t-lg group-hover:bg-emerald-600 transition" title="Income: €7,800"></div>
+              <div style="height: 39%" class="w-4 sm:w-6 bg-rose-400 rounded-t-lg group-hover:bg-rose-500 transition" title="Expense: €3,900"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-400">Sep</span>
+          </div>
+          <!-- Month 6: Oct (Active) -->
+          <div class="flex flex-col items-center gap-2 group cursor-pointer">
+            <div class="flex items-end gap-1.5 h-44">
+              <div style="height: 92%" class="w-4 sm:w-6 bg-emerald-500 rounded-t-lg ring-2 ring-emerald-200" title="Income: €8,450"></div>
+              <div style="height: 34%" class="w-4 sm:w-6 bg-rose-500 rounded-t-lg ring-2 ring-rose-200" title="Expense: €3,210"></div>
+            </div>
+            <span class="text-xs font-bold text-slate-900">Oct (Now)</span>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-xs text-slate-500">
+          <span>Net Savings Margin: <strong class="text-emerald-600 font-bold">62%</strong></span>
+          <span>Average Expense Rate: <strong>€3,685 / mo</strong></span>
+        </div>
+      </div>
+
+      <!-- Quick Add & Category Breakdown Panel -->
+      <div class="space-y-6">
+        
+        <!-- Live EuroInput Form -->
+        <div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900 mb-3">Quick Add Transaction</h2>
+          <form id="transaction-form" onsubmit="handleAddExpense(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Expense Name</label>
+              <input id="quick-add-desc" required type="text" placeholder="e.g. Figma Subscription" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Amount</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">€</span>
+                  <input id="quick-add-input" required type="number" step="0.01" min="0.01" placeholder="45.00" class="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Category</label>
+                <select id="quick-add-cat" class="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition bg-white">
+                  <option value="Tech">Tech</option>
+                  <option value="Food">Food</option>
+                  <option value="Housing">Housing</option>
+                  <option value="Transport">Transport</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition shadow-sm hover:shadow">
+              Record Transaction
+            </button>
+          </form>
+        </div>
+
+        <!-- Category Spend Breakdown -->
+        <div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-900">Spending by Category</h2>
+            <span class="text-xs text-slate-400">Monthly</span>
+          </div>
+
+          <div class="space-y-3.5">
+            <div>
+              <div class="flex justify-between text-xs mb-1 font-medium">
+                <span class="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-semibold">Housing & Rent</span>
+                <span class="font-bold text-slate-800">€ 1,450.00</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-indigo-500 h-1.5 rounded-full" style="width: 45%"></div></div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1 font-medium">
+                <span class="text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md font-semibold">Food & Groceries</span>
+                <span class="font-bold text-slate-800">€ 780.00</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-orange-500 h-1.5 rounded-full" style="width: 24%"></div></div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1 font-medium">
+                <span class="text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md font-semibold">Tech & SaaS</span>
+                <span class="font-bold text-slate-800">€ 420.00</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-sky-500 h-1.5 rounded-full" style="width: 14%"></div></div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1 font-medium">
+                <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold">Transport</span>
+                <span class="font-bold text-slate-800">€ 190.00</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: 7%"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Recent Transactions Table -->
+    <section class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold text-slate-900">Recent Transactions</h2>
+        <span class="text-xs text-slate-400">Showing latest records</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <th class="py-3 px-2">Description</th>
+              <th class="py-3 px-2">Category</th>
+              <th class="py-3 px-2">Date</th>
+              <th class="py-3 px-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="transaction-rows" class="divide-y divide-slate-50 text-slate-700 font-medium">
+            <tr class="hover:bg-slate-50/70 transition">
+              <td class="py-3.5 px-2 font-semibold text-slate-900 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span> AWS Cloud Hosting
+              </td>
+              <td class="py-3.5 px-2"><span class="bg-sky-50 text-sky-700 text-xs px-2.5 py-1 rounded-md font-semibold">Tech</span></td>
+              <td class="py-3.5 px-2 text-xs text-slate-400">Oct 22, 2026</td>
+              <td class="py-3.5 px-2 text-right font-bold text-rose-600">- € 84.50</td>
+            </tr>
+            <tr class="hover:bg-slate-50/70 transition">
+              <td class="py-3.5 px-2 font-semibold text-slate-900 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Client Retainer Payment
+              </td>
+              <td class="py-3.5 px-2"><span class="bg-emerald-50 text-emerald-700 text-xs px-2.5 py-1 rounded-md font-semibold">Income</span></td>
+              <td class="py-3.5 px-2 text-xs text-slate-400">Oct 20, 2026</td>
+              <td class="py-3.5 px-2 text-right font-bold text-emerald-600">+ € 3,500.00</td>
+            </tr>
+            <tr class="hover:bg-slate-50/70 transition">
+              <td class="py-3.5 px-2 font-semibold text-slate-900 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span> Bio Markt Groceries
+              </td>
+              <td class="py-3.5 px-2"><span class="bg-orange-50 text-orange-700 text-xs px-2.5 py-1 rounded-md font-semibold">Food</span></td>
+              <td class="py-3.5 px-2 text-xs text-slate-400">Oct 18, 2026</td>
+              <td class="py-3.5 px-2 text-right font-bold text-rose-600">- € 112.40</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Interactive Logic -->
+  <script>
+    let expenses = 3210.00;
+    let income = 8450.00;
+
+    function handleAddExpense(e) {
+      e.preventDefault();
+      const descInput = document.getElementById('quick-add-desc');
+      const amountInput = document.getElementById('quick-add-input');
+      const catInput = document.getElementById('quick-add-cat');
+
+      const amount = parseFloat(amountInput.value);
+      const desc = descInput.value;
+      const cat = catInput.value;
+
+      if (!amount || isNaN(amount)) return;
+
+      // Update state
+      expenses += amount;
+      const net = income - expenses;
+
+      // Update UI numbers
+      document.getElementById('total-expenses').innerText = '€ ' + expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('net-balance').innerText = '€ ' + net.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      // Add to table
+      const tbody = document.getElementById('transaction-rows');
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50/70 transition animate-fade-in';
+      
+      const categoryColor = {
+        Tech: 'bg-sky-50 text-sky-700',
+        Food: 'bg-orange-50 text-orange-700',
+        Housing: 'bg-indigo-50 text-indigo-700',
+        Transport: 'bg-emerald-50 text-emerald-700'
+      }[cat] || 'bg-slate-50 text-slate-700';
+
+      tr.innerHTML = `
+        <td class="py-3.5 px-2 font-semibold text-slate-900 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span> ${desc}
+        </td>
+        <td class="py-3.5 px-2"><span class="${categoryColor} text-xs px-2.5 py-1 rounded-md font-semibold">${cat}</span></td>
+        <td class="py-3.5 px-2 text-xs text-slate-400">Today</td>
+        <td class="py-3.5 px-2 text-right font-bold text-rose-600">- € ${amount.toFixed(2)}</td>
+      `;
+      tbody.prepend(tr);
+
+      // Reset form
+      descInput.value = '';
+      amountInput.value = '';
+      descInput.focus();
+    }
+  </script>
+</body>
+</html>

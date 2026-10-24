@@ -5,11 +5,13 @@ import type { Transaction } from '../lib/types'
 interface FinoraRecentTransactionsProps {
   transactions: Transaction[]
   onViewAll?: () => void
+  onTransactionClick?: (tx: Transaction) => void
 }
 
 export function FinoraRecentTransactions({
   transactions,
   onViewAll,
+  onTransactionClick,
 }: FinoraRecentTransactionsProps) {
   const latest = transactions.slice(0, 6)
 
@@ -52,7 +54,13 @@ export function FinoraRecentTransactions({
               latest.map((tx) => {
                 const isIncome = tx.kind === 'income'
                 return (
-                  <tr key={tx.id} className="finora-tr">
+                  <tr
+                    key={tx.id}
+                    className={`finora-tr ${onTransactionClick ? 'is-clickable' : ''}`}
+                    onClick={() => onTransactionClick?.(tx)}
+                    style={{ cursor: onTransactionClick ? 'pointer' : 'default' }}
+                    title={onTransactionClick ? 'Click to inspect category transactions' : undefined}
+                  >
                     <td className="finora-td-desc">
                       <span
                         className={`finora-dot ${isIncome ? 'finora-dot--income' : 'finora-dot--expense'}`}

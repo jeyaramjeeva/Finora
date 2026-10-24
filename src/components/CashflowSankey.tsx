@@ -7,6 +7,7 @@ interface CashflowSankeyProps {
   debtPaymentCents: number
   savingsCents: number
   investmentsCents: number
+  onNodeClick?: (flowType: 'income' | 'fixed' | 'variable' | 'debt' | 'savings') => void
 }
 
 export function CashflowSankey({
@@ -16,6 +17,7 @@ export function CashflowSankey({
   debtPaymentCents,
   savingsCents,
   investmentsCents,
+  onNodeClick,
 }: CashflowSankeyProps) {
   const totalIn = Math.max(incomeCents, 1)
   const safeFixed = Math.max(fixedExpenseCents, 0)
@@ -45,10 +47,17 @@ export function CashflowSankey({
       <div className="sankey-diagram">
         {/* Source: Net Income */}
         <div className="sankey-col sankey-col--in">
-          <div className="sankey-node sankey-node--in">
+          <div
+            className="sankey-node sankey-node--in is-interactive"
+            role="button"
+            tabIndex={0}
+            onClick={() => onNodeClick?.('income')}
+            onKeyDown={(e) => e.key === 'Enter' && onNodeClick?.('income')}
+            title="Click to view Income analysis"
+          >
             <span className="sankey-node__tag">Net Income</span>
             <strong className="sankey-node__val">{formatMoney(incomeCents)}</strong>
-            <span className="sankey-node__pct">100% Inflow</span>
+            <span className="sankey-node__pct">100% Inflow · Inspect &rarr;</span>
           </div>
         </div>
 
@@ -89,40 +98,68 @@ export function CashflowSankey({
 
         {/* Destination: Breakdown Nodes */}
         <div className="sankey-col sankey-col--out">
-          <div className="sankey-node sankey-node--fixed">
+          <div
+            className="sankey-node sankey-node--fixed is-interactive"
+            role="button"
+            tabIndex={0}
+            onClick={() => onNodeClick?.('fixed')}
+            onKeyDown={(e) => e.key === 'Enter' && onNodeClick?.('fixed')}
+            title="Click to inspect fixed living obligations"
+          >
             <div className="sankey-node__row">
               <span className="sankey-node__title">Fixed Living Costs</span>
               <strong className="sankey-node__val">{formatMoney(safeFixed)}</strong>
             </div>
-            <div className="sankey-node__sub">Rent, Utilities, Insurances ({pFixed}%)</div>
+            <div className="sankey-node__sub">Rent, Utilities, Insurances ({pFixed}%) · View ledger &rarr;</div>
           </div>
 
-          <div className="sankey-node sankey-node--var">
+          <div
+            className="sankey-node sankey-node--var is-interactive"
+            role="button"
+            tabIndex={0}
+            onClick={() => onNodeClick?.('variable')}
+            onKeyDown={(e) => e.key === 'Enter' && onNodeClick?.('variable')}
+            title="Click to inspect variable lifestyle spending"
+          >
             <div className="sankey-node__row">
               <span className="sankey-node__title">Variable Spend</span>
               <strong className="sankey-node__val">{formatMoney(safeVariable)}</strong>
             </div>
-            <div className="sankey-node__sub">Groceries, Dining, Travel ({pVariable}%)</div>
+            <div className="sankey-node__sub">Groceries, Dining, Travel ({pVariable}%) · View ledger &rarr;</div>
           </div>
 
           {safeDebt > 0 && (
-            <div className="sankey-node sankey-node--debt">
+            <div
+              className="sankey-node sankey-node--debt is-interactive"
+              role="button"
+              tabIndex={0}
+              onClick={() => onNodeClick?.('debt')}
+              onKeyDown={(e) => e.key === 'Enter' && onNodeClick?.('debt')}
+              title="Click to view debt repayment schedules"
+            >
               <div className="sankey-node__row">
                 <span className="sankey-node__title">Debt Repayment</span>
                 <strong className="sankey-node__val">{formatMoney(safeDebt)}</strong>
               </div>
-              <div className="sankey-node__sub">Family Loan / Interest ({pDebt}%)</div>
+              <div className="sankey-node__sub">Family Loan / Interest ({pDebt}%) · Manage debts &rarr;</div>
             </div>
           )}
 
-          <div className="sankey-node sankey-node--savings">
+          <div
+            className="sankey-node sankey-node--savings is-interactive"
+            role="button"
+            tabIndex={0}
+            onClick={() => onNodeClick?.('savings')}
+            onKeyDown={(e) => e.key === 'Enter' && onNodeClick?.('savings')}
+            title="Click to open savings & investment horizons"
+          >
             <div className="sankey-node__row">
               <span className="sankey-node__title">Wealth &amp; Savings Buffer</span>
               <strong className="sankey-node__val" style={{ color: 'var(--ok)' }}>
                 {formatMoney(safeSavings + safeInvest)}
               </strong>
             </div>
-            <div className="sankey-node__sub">ETFs, Gold, Liquid Surplus ({pInvest + pSavings}%)</div>
+            <div className="sankey-node__sub">ETFs, Gold, Liquid Surplus ({pInvest + pSavings}%) · View goals &rarr;</div>
           </div>
         </div>
       </div>

@@ -291,7 +291,33 @@ export function Dashboard() {
   return (
     <div className="stack" style={{ gap: 18 }}>
       {/* Executive Financial Brief - 8 core questions answered upfront */}
-      {visibleWidgets.brief !== false && <ExecutiveBriefCard brief={brief} />}
+      {visibleWidgets.brief !== false && (
+        <ExecutiveBriefCard
+          brief={brief}
+          onCategoryClick={(catName) => {
+            const foundCat = state.categories.find(
+              (c) => c.name.toLowerCase() === catName.toLowerCase() || c.id.toLowerCase() === catName.toLowerCase()
+            )
+            if (foundCat) {
+              pickCategory(foundCat.id)
+            } else {
+              const matches = state.transactions.filter(
+                (t) =>
+                  (t.categoryId.toLowerCase().includes(catName.toLowerCase()) ||
+                    t.description.toLowerCase().includes(catName.toLowerCase())) &&
+                  (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              )
+              setDrawerTitle(`${catName} Ledger`)
+              setDrawerSubtitle(`${matches.length} records · ${formatMoney(brief.topCategories[0]?.cents ?? 0)} total`)
+              setDrawerTransactions(matches)
+              setDrawerOpen(true)
+            }
+          }}
+          onNavigate={(tab) => {
+            window.location.hash = tab
+          }}
+        />
+      )}
 
       {/* Top Filter and Perspective Controls */}
       <div className="cmd" style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -378,6 +404,19 @@ export function Dashboard() {
           score={healthScore}
           runwayMonths={runwayMonths}
           savingsCents={figures.savingsCents ?? 0}
+          onClick={() => {
+            const periodOutflows = state.transactions.filter(
+              (t) =>
+                (t.kind === 'expense' || t.kind === 'debt_payment') &&
+                (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+            )
+            setDrawerTitle(`Finora Health Index Score: ${healthScore} / 100`)
+            setDrawerSubtitle(
+              `Runway: ${runwayMonths ? runwayMonths.toFixed(1) + ' months' : 'N/A'} · Surplus buffer: ${formatMoney(figures.savingsCents ?? 0)} · ${periodOutflows.length} outflow records`
+            )
+            setDrawerTransactions(periodOutflows)
+            setDrawerOpen(true)
+          }}
         />
         <KpiCard
           label="Net Balance / Savings"
@@ -428,6 +467,19 @@ export function Dashboard() {
           <FinoraRecentTransactions
             transactions={state.transactions.filter((t) => t.origin === 'actual')}
             onViewAll={() => { window.location.hash = 'expenses' }}
+            onTransactionClick={(tx) => {
+              const catTxs = state.transactions.filter(
+                (t) =>
+                  t.categoryId === tx.categoryId &&
+                  (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              )
+              setDrawerTitle(`${categoryName(state, tx.categoryId)} Transactions`)
+              setDrawerSubtitle(
+                `Selected: "${tx.description}" (${formatMoney(tx.amountCents)}) · ${catTxs.length} related records`
+              )
+              setDrawerTransactions(catTxs)
+              setDrawerOpen(true)
+            }}
           />
         </div>
 
@@ -511,6 +563,8 @@ export function Dashboard() {
         savingsRate={figures.savingsRate}
         budgetCents={totalMonthlyBudgetCents}
         periodLabel={months.length === 1 ? months[0] : months.length > 1 ? `${months.length} Months Active` : (employed ? 'Full-Time Plan' : 'All Months')}
+        onClickCashflow={() => { window.location.hash = 'expenses' }}
+        onClickBudget={() => { window.location.hash = 'budgets' }}
       />
 
       {/* Visual Cashflow Distribution & 50/30/20 Rule Balance */}
@@ -522,12 +576,66 @@ export function Dashboard() {
           debtPaymentCents={figures.debtPaymentCents ?? 0}
           savingsCents={figures.savingsCents ?? 0}
           investmentsCents={figures.savingsContributionCents ?? 0}
+          onNodeClick={(flow) => {
+            if (flow === 'income') {
+              window.location.hash = 'income'
+            } else if (flow === 'debt') {
+              window.location.hash = 'debts'
+            } else if (flow === 'savings') {
+              window.location.hash = 'savings'
+            } else if (flow === 'fixed') {
+              const fixedTxs = state.transactions.filter((t) => {
+                const isNeed = ['rent', 'grocer', 'util', 'electr', 'heat', 'phone', 'intern', 'insur', 'loan', 'debt', 'repay', 'educ', 'transp']
+                  .some((k) => t.categoryId.toLowerCase().includes(k))
+                return isNeed && (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              })
+              setDrawerTitle('Fixed Living Costs & Obligations (Needs)')
+              setDrawerSubtitle(`${fixedTxs.length} records · ${formatMoney(needsCents)} total`)
+              setDrawerTransactions(fixedTxs)
+              setDrawerOpen(true)
+            } else if (flow === 'variable') {
+              const varTxs = state.transactions.filter((t) => {
+                const isNeed = ['rent', 'grocer', 'util', 'electr', 'heat', 'phone', 'intern', 'insur', 'loan', 'debt', 'repay', 'educ', 'transp']
+                  .some((k) => t.categoryId.toLowerCase().includes(k))
+                return !isNeed && t.kind === 'expense' && (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              })
+              setDrawerTitle('Variable Living Spend & Lifestyle (Wants)')
+              setDrawerSubtitle(`${varTxs.length} records · ${formatMoney(wantsCents)} total`)
+              setDrawerTransactions(varTxs)
+              setDrawerOpen(true)
+            }
+          }}
         />
         <FiftyThirtyTwentyCard
           incomeCents={figures.incomeCents ?? 0}
           needsCents={needsCents}
           wantsCents={wantsCents}
           savingsCents={figures.savingsCents ?? 0}
+          onPillarClick={(pillar) => {
+            if (pillar === 'savings') {
+              window.location.hash = 'savings'
+            } else if (pillar === 'needs') {
+              const fixedTxs = state.transactions.filter((t) => {
+                const isNeed = ['rent', 'grocer', 'util', 'electr', 'heat', 'phone', 'intern', 'insur', 'loan', 'debt', 'repay', 'educ', 'transp']
+                  .some((k) => t.categoryId.toLowerCase().includes(k))
+                return isNeed && (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              })
+              setDrawerTitle('50% Rule: Needs & Fixed Living Costs')
+              setDrawerSubtitle(`${fixedTxs.length} records · ${formatMoney(needsCents)} spent of ${formatMoney((figures.incomeCents ?? 0) * 0.5)} target`)
+              setDrawerTransactions(fixedTxs)
+              setDrawerOpen(true)
+            } else if (pillar === 'wants') {
+              const varTxs = state.transactions.filter((t) => {
+                const isNeed = ['rent', 'grocer', 'util', 'electr', 'heat', 'phone', 'intern', 'insur', 'loan', 'debt', 'repay', 'educ', 'transp']
+                  .some((k) => t.categoryId.toLowerCase().includes(k))
+                return !isNeed && t.kind === 'expense' && (activeMonths.length === 0 || activeMonths.includes(t.date.slice(0, 7)))
+              })
+              setDrawerTitle('30% Rule: Wants & Discretionary Spend')
+              setDrawerSubtitle(`${varTxs.length} records · ${formatMoney(wantsCents)} spent of ${formatMoney((figures.incomeCents ?? 0) * 0.3)} target`)
+              setDrawerTransactions(varTxs)
+              setDrawerOpen(true)
+            }
+          }}
         />
       </div>
 

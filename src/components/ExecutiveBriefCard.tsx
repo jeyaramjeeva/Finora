@@ -58,21 +58,36 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         {/* 1. Earned */}
-        <div className="brief-card">
+        <div
+          className="brief-card is-interactive"
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate?.('income')}
+          onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('income')}
+        >
           <div className="brief-q">1. How much did I earn?</div>
           <div className="brief-val tone-good">{formatMoney(brief.earnedCents)}</div>
           <div className="brief-detail">
             {brief.earnedDeltaVsPrior !== null ? (
-              <span className={brief.earnedDeltaVsPrior >= 0 ? 'muted' : 'muted'}>
+              <span className="muted">
                 {brief.earnedDeltaVsPrior >= 0 ? '+' : ''}{formatMoney(brief.earnedDeltaVsPrior)} vs prior month.
               </span>
             ) : null}{' '}
             {brief.earnedNote}
           </div>
+          <div className="brief-action-hint">
+            <span>View income breakdown &rarr;</span>
+          </div>
         </div>
 
         {/* 2. Spent */}
-        <div className="brief-card">
+        <div
+          className="brief-card is-interactive"
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate?.('expenses')}
+          onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('expenses')}
+        >
           <div className="brief-q">2. How much did I spend?</div>
           <div className="brief-val">{formatMoney(brief.spentCents)}</div>
           <div className="brief-detail">
@@ -83,10 +98,19 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
             ) : null}
             {brief.spentNote}
           </div>
+          <div className="brief-action-hint">
+            <span>Inspect expenses ledger &rarr;</span>
+          </div>
         </div>
 
         {/* 3. Saved */}
-        <div className="brief-card">
+        <div
+          className="brief-card is-interactive"
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate?.('savings')}
+          onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('savings')}
+        >
           <div className="brief-q">3. How much did I save?</div>
           <div className={`brief-val ${brief.savedCents !== null && brief.savedCents >= 0 ? 'tone-good' : 'tone-bad'}`}>
             {formatMoney(brief.savedCents)}{' '}
@@ -95,22 +119,36 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
             ) : null}
           </div>
           <div className="brief-detail">{brief.savedNote}</div>
+          <div className="brief-action-hint">
+            <span>Explore savings &amp; goals &rarr;</span>
+          </div>
         </div>
 
         {/* 4. Available Cash */}
-        <div className="brief-card">
+        <div
+          className="brief-card is-interactive"
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate?.('budgets')}
+          onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('budgets')}
+        >
           <div className="brief-q">4. Money available after obligations?</div>
           <div className="brief-val tone-good">{formatMoney(brief.availableCashCents)}</div>
           <div className="brief-detail">{brief.availableCashNote}</div>
+          <div className="brief-action-hint">
+            <span>Check budget allocations &rarr;</span>
+          </div>
         </div>
 
         {!collapsed && (
           <>
             {/* 5. Where does most money go */}
             <div
-              className="brief-card"
-              style={{ cursor: onCategoryClick && brief.topCategories[0] ? 'pointer' : 'default' }}
+              className="brief-card is-interactive"
+              role="button"
+              tabIndex={0}
               onClick={() => brief.topCategories[0] && onCategoryClick?.(brief.topCategories[0].name)}
+              onKeyDown={(e) => e.key === 'Enter' && brief.topCategories[0] && onCategoryClick?.(brief.topCategories[0].name)}
             >
               <div className="brief-q">5. Where does most of my money go?</div>
               <div className="brief-val" style={{ fontSize: '1.05rem' }}>
@@ -119,10 +157,19 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
               <div className="brief-detail">
                 {brief.topCategoryNote}
               </div>
+              <div className="brief-action-hint">
+                <span>View category transactions &rarr;</span>
+              </div>
             </div>
 
             {/* 6. Spending vs planned */}
-            <div className="brief-card">
+            <div
+              className="brief-card is-interactive"
+              role="button"
+              tabIndex={0}
+              onClick={() => onNavigate?.('budgets')}
+              onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('budgets')}
+            >
               <div className="brief-q">6. Am I spending more than planned?</div>
               <div className="brief-val" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <Badge tone={brief.spendingStatus === 'over' ? 'bad' : brief.spendingStatus === 'under' ? 'ok' : 'muted'}>
@@ -130,24 +177,45 @@ export function ExecutiveBriefCard({ brief, onCategoryClick, onNavigate }: Execu
                 </Badge>
               </div>
               <div className="brief-detail">{brief.spendingVsPlanNote}</div>
+              <div className="brief-action-hint">
+                <span>Review category budgets &rarr;</span>
+              </div>
             </div>
 
             {/* 7. Debt remaining */}
-            <div className="brief-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('debts')}>
+            <div
+              className="brief-card is-interactive"
+              role="button"
+              tabIndex={0}
+              onClick={() => onNavigate?.('debts')}
+              onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('debts')}
+            >
               <div className="brief-q">7. How much debt do I still have?</div>
               <div className={`brief-val ${brief.totalDebtCents > 0 ? 'tone-bad' : 'tone-good'}`}>
                 {formatMoney(brief.totalDebtCents)}
               </div>
               <div className="brief-detail">{brief.debtStatusNote}</div>
+              <div className="brief-action-hint">
+                <span>View loan payoff schedules &rarr;</span>
+              </div>
             </div>
 
             {/* 8. Realistic 6-12 month savings */}
-            <div className="brief-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('forecast')}>
+            <div
+              className="brief-card is-interactive"
+              role="button"
+              tabIndex={0}
+              onClick={() => onNavigate?.('forecast')}
+              onKeyDown={(e) => e.key === 'Enter' && onNavigate?.('forecast')}
+            >
               <div className="brief-q">8. Realistic 6 to 12 month savings?</div>
               <div className="brief-val tone-good" style={{ fontSize: '1.05rem' }}>
                 {formatMoney(brief.realisticSavings6mCents)} – {formatMoney(brief.realisticSavings12mCents)}
               </div>
               <div className="brief-detail">{brief.savingsOutlookNote}</div>
+              <div className="brief-action-hint">
+                <span>Open multi-year forecast &rarr;</span>
+              </div>
             </div>
           </>
         )}

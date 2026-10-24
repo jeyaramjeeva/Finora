@@ -7,6 +7,8 @@ import { ChartChrome, chartTooltipStyle } from '../components/ChartChrome'
 import { EuroInput } from '../components/EuroInput'
 import { CategoryBadge } from '../components/CategoryBadge'
 import { SpendingVelocityCard } from '../components/SpendingVelocityCard'
+import { DrillDownDrawer } from '../components/DrillDownDrawer'
+import type { Transaction } from '../lib/types'
 import { applyBudget, budgetStatus, eligibleSpend, projectMonthEnd } from '../lib/calc'
 import { addMonths } from '../lib/dates'
 import { formatMoney, formatPercent } from '../lib/money'
@@ -26,6 +28,26 @@ export function BudgetsPage() {
   const currentYear = Number(month.slice(0, 4))
   const previousMonth = month ? addMonths(month, -1) : ''
   const previousYear = currentYear - 1
+
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerTitle, setDrawerTitle] = useState('')
+  const [drawerSubtitle, setDrawerSubtitle] = useState<string | undefined>()
+  const [drawerTransactions, setDrawerTransactions] = useState<Transaction[]>([])
+
+  function openCategoryDrilldown(catId: string, catName: string) {
+    const periodTxs = state.transactions.filter((t) => {
+      if (t.categoryId !== catId || t.kind !== 'expense') return false
+      if (periodTab === 'month') {
+        return t.date.slice(0, 7) === month
+      } else {
+        return t.date.startsWith(String(currentYear))
+      }
+    })
+    setDrawerTitle(`${catName} Spending Ledger`)
+    setDrawerSubtitle(`${periodTxs.length} transaction${periodTxs.length === 1 ? '' : 's'} recorded in ${periodTab === 'month' ? month : currentYear}`)
+    setDrawerTransactions(periodTxs)
+    setDrawerOpen(true)
+  }
 
   // Filter categories and map budgets
   const rows = useMemo(() => {
@@ -309,7 +331,14 @@ export function BudgetsPage() {
                 return (
                   <tr key={row.category.id}>
                     <td>
-                      <CategoryBadge category={row.category.id} label={row.category.name} />
+                      <div
+                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => openCategoryDrilldown(row.category.id, row.category.name)}
+                        title="Click to view category transactions"
+                      >
+                        <CategoryBadge category={row.category.id} label={row.category.name} />
+                        <span className="muted" style={{ fontSize: '0.72rem' }}>&rarr;</span>
+                      </div>
                     </td>
                     <td>
                       <span className="badge">
@@ -324,7 +353,16 @@ export function BudgetsPage() {
                         onChange={(val) => handleBudgetChange(row.category.id, val, row.budget?.id)}
                       />
                     </td>
-                    <td className="num" style={{ fontWeight: 600 }}>{formatMoney(row.spent)}</td>
+                    <td
+                      className="num"
+                      style={{ fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => openCategoryDrilldown(row.category.id, row.category.name)}
+                      title="Click to inspect spending records"
+                    >
+                      <span className="finora-link-cell" style={{ textDecoration: 'underline dotted', textUnderlineOffset: 3 }}>
+                        {formatMoney(row.spent)}
+                      </span>
+                    </td>
                     <td className={`num ${remaining !== null && remaining < 0 ? 'tone-bad' : ''}`}>
                       {remaining !== null ? formatMoney(remaining) : '—'}
                     </td>
@@ -486,6 +524,14 @@ export function BudgetsPage() {
           </div>
         </Panel>
       ) : null}
+
+      <DrillDownDrawer
+        open={drawerOpen}
+        title={drawerTitle}
+        subtitle={drawerSubtitle}
+        transactions={drawerTransactions}
+        onClose={() => setDrawerOpen(false)}
+      />
     </div>
   )
 }

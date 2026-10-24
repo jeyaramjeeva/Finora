@@ -16,6 +16,8 @@ interface CashflowHealthCardProps {
   savingsRate: number | null
   budgetCents?: number | null
   periodLabel?: string
+  onClickCashflow?: () => void
+  onClickBudget?: () => void
 }
 
 export function CashflowHealthCard({
@@ -25,6 +27,8 @@ export function CashflowHealthCard({
   savingsRate,
   budgetCents,
   periodLabel = 'Current Period',
+  onClickCashflow,
+  onClickBudget,
 }: CashflowHealthCardProps) {
   const expenseRatio = incomeCents > 0 ? Math.min(100, Math.round((expenseCents / incomeCents) * 100)) : expenseCents > 0 ? 100 : 0
   const isSurplus = savingsCents >= 0
@@ -39,7 +43,12 @@ export function CashflowHealthCard({
   return (
     <div className="grid-2" style={{ gap: 14 }}>
       {/* 1. Cashflow Health Balance Card */}
-      <MotionCard className="chart-chrome" interactive={false}>
+      <MotionCard
+        className={`chart-chrome ${onClickCashflow ? 'is-interactive' : ''}`}
+        interactive={Boolean(onClickCashflow)}
+        onClick={onClickCashflow}
+        style={{ cursor: onClickCashflow ? 'pointer' : 'default' }}
+      >
         <div className="chart-chrome__head">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="kpi-icon kpi-icon--positive" style={{ width: 34, height: 34 }}>
@@ -114,11 +123,21 @@ export function CashflowHealthCard({
               {isSurplus ? '+' : ''}{formatMoney(savingsCents)}
             </span>
           </div>
+          {onClickCashflow && (
+            <div style={{ marginTop: 2, fontSize: '0.72rem', color: 'var(--ok)', fontWeight: 700, textAlign: 'right' }}>
+              Inspect expenses ledger &rarr;
+            </div>
+          )}
         </div>
       </MotionCard>
 
       {/* 2. Monthly Budget Progress Meter */}
-      <MotionCard className="chart-chrome" interactive={false}>
+      <MotionCard
+        className={`chart-chrome ${onClickBudget ? 'is-interactive' : ''}`}
+        interactive={Boolean(onClickBudget)}
+        onClick={onClickBudget}
+        style={{ cursor: onClickBudget ? 'pointer' : 'default' }}
+      >
         <div className="chart-chrome__head">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
@@ -189,6 +208,11 @@ export function CashflowHealthCard({
                 {formatMoney(Math.abs(budgetRemaining))}
               </span>
             </div>
+            {onClickBudget && (
+              <div style={{ marginTop: 4, fontSize: '0.72rem', color: isOverBudget ? 'var(--danger)' : 'var(--ok)', fontWeight: 700, textAlign: 'right' }}>
+                Review and adjust category limits &rarr;
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ padding: '18px 0', textAlign: 'center' }}>

@@ -800,11 +800,38 @@ tr.clickable:hover { background: var(--surface-2); }
 .brief-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 13px 15px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.brief-card.is-interactive {
+  cursor: pointer;
+  position: relative;
+}
+.brief-card.is-interactive:hover {
+  transform: translateY(-2px);
+  background: var(--surface);
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.12), var(--shadow);
+}
+.brief-action-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ok);
+  margin-top: 3px;
+  opacity: 0.85;
+  transition: all 0.15s ease;
+}
+.brief-card.is-interactive:hover .brief-action-hint {
+  opacity: 1;
+  transform: translateX(3px);
+  color: var(--brand-leaf);
 }
 .brief-q {
   font-size: 0.72rem;
@@ -920,12 +947,19 @@ tr.clickable:hover { background: var(--surface-2); }
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   min-height: 160px;
 }
 .finora-health-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 26px rgba(15, 23, 42, 0.3);
+}
+.finora-health-card.is-interactive {
+  cursor: pointer;
+}
+.finora-health-card.is-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(110, 231, 183, 0.35);
 }
 .finora-health-card__top {
   display: flex;
@@ -1273,6 +1307,16 @@ tr.clickable:hover { background: var(--surface-2); }
   display: flex;
   flex-direction: column;
   gap: 5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.finora-cat-item:hover {
+  background: var(--surface-2);
+}
+.finora-cat-item.is-selected {
+  background: var(--surface-2);
+  outline: 1px solid var(--accent);
 }
 .finora-cat-item__top {
   display: flex;
@@ -1365,6 +1409,15 @@ tr.clickable:hover { background: var(--surface-2); }
 }
 .finora-tr:hover {
   background: var(--surface-2);
+}
+.finora-tr.is-clickable {
+  cursor: pointer;
+}
+.finora-tr.is-clickable:hover {
+  background: var(--surface-2);
+}
+.finora-tr.is-clickable:hover .finora-desc-text {
+  color: var(--ok);
 }
 .finora-td-desc {
   padding: 12px 8px;
@@ -1559,10 +1612,25 @@ tr.clickable:hover { background: var(--surface-2); }
   height: 100%;
 }
 .sankey-node {
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 11px 15px;
+  border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sankey-node.is-interactive {
+  cursor: pointer;
+  position: relative;
+}
+.sankey-node.is-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: rgba(99, 102, 241, 0.45);
+  background: var(--surface);
+}
+.sankey-node--in.is-interactive:hover {
+  border-color: rgba(16, 185, 129, 0.55);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.18);
 }
 .sankey-node--in {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25));
@@ -1766,12 +1834,30 @@ tr.clickable:hover { background: var(--surface-2); }
 
 /* 50/30/20 Pillars */
 .ftt-pillar {
-  padding: 14px;
-  border-radius: 12px;
+  padding: 15px;
+  border-radius: 14px;
   background: var(--surface-2);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ftt-pillar.is-interactive {
+  cursor: pointer;
+  position: relative;
+}
+.ftt-pillar.is-interactive:hover {
+  transform: translateY(-2px);
+  background: var(--surface);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.08), var(--shadow);
+}
+.ftt-action-link {
+  transition: transform 0.15s ease;
+}
+.ftt-pillar.is-interactive:hover .ftt-action-link {
+  transform: translateX(3px);
 }
 .ftt-pillar__top {
   display: flex;
